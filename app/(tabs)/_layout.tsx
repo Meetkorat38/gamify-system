@@ -1,40 +1,29 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HapticTab } from "@/components/haptic-tab";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Platform } from "react-native";
-import { useColors } from "@/hooks/use-colors";
+import { COLORS } from "@/constants/gamify";
 
 export default function TabLayout() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
-  const tabBarHeight = 56 + bottomPadding;
-
+  const bottomPadding = Platform.OS === "web" ? 10 : Math.max(insets.bottom, 8);
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.tint,
         headerShown: false,
+        tabBarActiveTintColor: COLORS.cyan,
+        tabBarInactiveTintColor: COLORS.muted,
         tabBarButton: HapticTab,
-        tabBarStyle: {
-          paddingTop: 8,
-          paddingBottom: bottomPadding,
-          height: tabBarHeight,
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: 0.5,
-        },
+        tabBarStyle: { height: 58 + bottomPadding, paddingTop: 7, paddingBottom: bottomPadding, backgroundColor: COLORS.ink, borderTopColor: COLORS.line, borderTopWidth: 1 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Command", tabBarIcon: ({ color, size }) => <Ionicons name="radio-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="quests" options={{ title: "Quests", tabBarIcon: ({ color, size }) => <Ionicons name="flash-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="tracks" options={{ title: "Tracks", tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="review" options={{ title: "Review", tabBarIcon: ({ color, size }) => <Ionicons name="moon-outline" size={size} color={color} /> }} />
     </Tabs>
   );
 }
