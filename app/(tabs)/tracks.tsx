@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Chips } from "@/components/chips";
+import { foodTotals, fuelTarget } from "@/constants/food";
 import { ProgressBar } from "@/components/progress-bar";
 import { ScoreStepper } from "@/components/score-stepper";
 import { ScreenContainer } from "@/components/screen-container";
@@ -13,7 +14,7 @@ const STOP_SECONDS = 25 * 60;
 const SCORE_KEYS = ["pronunciation", "grammar", "vocabulary", "clarity"] as const;
 
 export default function TracksScreen() {
-  const { state, todayKey, todayLog, addWeight, setWeightGoal, saveFeedback, saveMeals, homeStreak } = useLifeGamify();
+  const { state, todayKey, todayLog, addWeight, setWeightGoal, saveFeedback, saveMeals, logCustomFood, homeStreak } = useLifeGamify();
   const { dietPlan, generateDietPlan, busyDiet } = useCoach();
   const [weight, setWeight] = useState("");
   const [goal, setGoal] = useState(String(state.weightGoal));
@@ -27,6 +28,7 @@ export default function TracksScreen() {
   const [minutes, setMinutes] = useState("20");
   const [meals, setMeals] = useState<string[]>(() => state.mealLogs[todayKey]?.items ?? []);
   const [outside, setOutside] = useState(() => state.mealLogs[todayKey]?.outsideFood ?? false);
+  const [customText, setCustomText] = useState("");
   const [flashMessage, setFlashMessage] = useState("");
 
   useEffect(() => {
@@ -107,6 +109,17 @@ export default function TracksScreen() {
     saveMeals({ items: meals, outsideFood: outside });
     showFlash(outside ? "LOGGED · OUTSIDE FOOD FLAGGED" : "FUEL SAVED");
   };
+  const logCustom = () => {
+    const text = customText.trim();
+    if (!text) return;
+    logCustomFood(text);
+    setCustomText("");
+    showFlash("FOOD LOGGED · GOAL ADJUSTED");
+  };
+  const customFoods = state.mealLogs[todayKey]?.custom ?? [];
+  const foodTotal = foodTotals(customFoods);
+  const fuelGoal = fuelTarget(latestWeight, state.weightGoal);
+  const remainingKcal = Math.max(0, fuelGoal.kcal - foodTotal.kcal);
 
   return (
     <ScreenContainer safeAreaClassName="bg-[#F6F6F3]" containerClassName="bg-[#F6F6F3]">
@@ -209,6 +222,35 @@ export default function TracksScreen() {
             <Pressable onPress={saveGoal} style={({ pressed }) => [styles.smallButton, styles.goalButton, pressed && styles.pressed]}><Text style={styles.smallButtonText}>SET GOAL</Text></Pressable>
           </View>
           <Text style={styles.sectionLabel}>{"// TODAY’S FUEL"}</Text>
+          <View style={styles.fuelMeter}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.healthLabel}>TODAY’S ENERGY</Text>
+              <Text style={styles.fuelText}>{foodTotal.kcal} / {fuelGoal.kcal} KCAL · {foodTotal.protein} / {fuelGoal.protein} G PROTEIN</Text>
+            </View>
+            <ProgressBar value={(foodTotal.kcal / fuelGoal.kcal) * 100} color={COLORS.lime} height={7} />
+            <Text style={styles.hint}>{remainingKcal > 0 ? `${remainingKcal} kcal to go — log anything you eat and the goal adjusts.` : "Daily target reached. Anything extra fuels the gain."}</Text>
+          </View>
+          <View style={styles.row}>
+            <TextInput
+              value={customText}
+              onChangeText={setCustomText}
+              placeholder={'e.g. "3 bananas and 2 eggs"'}
+              placeholderTextColor={COLORS.muted}
+              style={[styles.input, { flex: 1 }]}
+              onSubmitEditing={logCustom}
+              returnKeyType="done"
+            />
+            <Pressable onPress={logCustom} style={({ pressed }) => [styles.smallButton, styles.goalButton, pressed && styles.pressed]}><Text style={styles.smallButtonText}>LOG FOOD</Text></Pressable>
+          </View>
+          {customFoods.length ? (
+            <View style={styles.customWrap}>
+              {customFoods.map((food, index) => (
+                <View key={`${food.text}-${index}`} style={styles.customChip}>
+                  <Text style={styles.customChipText}>{food.text} · {food.kcal} kcal · {food.protein} g</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <Chips options={MEAL_ITEMS} selected={meals} onToggle={toggleMeal} color={COLORS.lime} dim={COLORS.limeDim} />
           <Pressable onPress={() => setOutside((current) => !current)} style={[styles.outsideChip, outside && styles.outsideChipOn]}>
             <Text style={[styles.outsideText, outside && styles.outsideTextOn]}>{outside ? "OUTSIDE FOOD LOGGED TODAY" : "TAP IF YOU ATE OUTSIDE FOOD"}</Text>
@@ -305,6 +347,11 @@ const styles = StyleSheet.create({
   outsideText: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   outsideTextOn: { color: COLORS.red },
   fuelButton: { backgroundColor: COLORS.lime },
+  fuelMeter: { gap: 6, backgroundColor: COLORS.limeDim, borderRadius: 13, padding: 11 },
+  fuelText: { color: COLORS.lime, fontSize: 8, fontWeight: "900", letterSpacing: 0.4 },
+  customWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  customChip: { backgroundColor: COLORS.limeDim, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.lime },
+  customChipText: { color: COLORS.lime, fontSize: 9, fontWeight: "800" },
   dietCard: { backgroundColor: COLORS.panel, borderRadius: 17, borderWidth: 1, borderColor: COLORS.amber, padding: 14, gap: 10 },
   weekTag: { color: COLORS.amber, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   planSummary: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontWeight: "700" },

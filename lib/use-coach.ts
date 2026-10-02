@@ -16,6 +16,8 @@ import {
   buildFallbackDailyPlan,
   buildFallbackDietPlan,
   buildFallbackLearningPlan,
+  ensureLearningLinks,
+  ensurePlanLinks,
 } from "@/lib/fallback-plans";
 import { useLifeGamify } from "@/lib/lifegamify-store";
 import { trpc } from "@/lib/trpc";
@@ -33,14 +35,16 @@ export function useCoach() {
   const dietMutation = trpc.ai.dietPlan.useMutation();
   const learningMutation = trpc.ai.learningPlan.useMutation();
 
-  const dailyPlan = getAi<DailyPlan>(state, aiKey("daily", todayKey));
+  const cachedDaily = getAi<DailyPlan>(state, aiKey("daily", todayKey));
+  const dailyPlan = cachedDaily ? ensurePlanLinks(cachedDaily) : null;
   const alignment = getAi<AlignmentReport>(state, aiKey("align", todayKey));
   const dietPlan = getAi<DietPlan>(state, aiKey("diet", weekStart));
-  const learningPlan = getAi<LearningPlan>(state, aiKey("learning", weekStart));
+  const cachedLearning = getAi<LearningPlan>(state, aiKey("learning", weekStart));
+  const learningPlan = cachedLearning ? ensureLearningLinks(cachedLearning) : null;
 
   const generateDailyPlan = async () => {
     try {
-      const data = (await dailyMutation.mutateAsync(snapshot)) as DailyPlan;
+      const data = ensurePlanLinks((await dailyMutation.mutateAsync(snapshot)) as DailyPlan);
       saveAi(aiKey("daily", todayKey), { ...data, source: "ai" });
       return data;
     } catch {
@@ -76,7 +80,7 @@ export function useCoach() {
 
   const generateLearningPlan = async () => {
     try {
-      const data = (await learningMutation.mutateAsync(snapshot)) as LearningPlan;
+      const data = ensureLearningLinks((await learningMutation.mutateAsync(snapshot)) as LearningPlan);
       saveAi(aiKey("learning", weekStart), { ...data, source: "ai" });
       return data;
     } catch {

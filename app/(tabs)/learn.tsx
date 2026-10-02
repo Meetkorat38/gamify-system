@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Chips } from "@/components/chips";
 import { CounterRow } from "@/components/counter-row";
@@ -151,6 +151,15 @@ export default function LearnScreen() {
                     <Text style={styles.blockStatus}>{block.status === "next" ? "NEXT" : "UPCOMING"}</Text>
                   </View>
                   <Text style={styles.blockTask}>{block.task}</Text>
+                  {block.links?.length ? (
+                    <View style={styles.linkRow}>
+                      {block.links.map((link) => (
+                        <Pressable key={link.url} onPress={() => Linking.openURL(link.url).catch(() => undefined)} style={styles.linkChip}>
+                          <Text style={styles.linkChipText} numberOfLines={1}>{"READ · "}{link.title}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                   <Text style={styles.blockMinutes}>{block.minutes} MIN</Text>
                 </View>
               ))}
@@ -308,6 +317,9 @@ const styles = StyleSheet.create({
   coveredLine: { color: COLORS.lime, fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 0.4 },
   blockSkill: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   blockTask: { color: COLORS.text, fontSize: 12, lineHeight: 17 },
+  linkRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 },
+  linkChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4, maxWidth: "100%" },
+  linkChipText: { color: COLORS.cyan, fontSize: 8, fontWeight: "900", letterSpacing: 0.3, flexShrink: 1 },
   blockMinutes: { color: COLORS.muted, fontSize: 9, fontWeight: "800" },
   prepItem: { color: COLORS.muted, fontSize: 11, lineHeight: 17 },
   aiButton: { backgroundColor: COLORS.amber, borderRadius: 11, alignItems: "center", paddingVertical: 11, marginTop: 2 },

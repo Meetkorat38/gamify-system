@@ -3,13 +3,15 @@ import type { PersistedState } from "@/lib/lifegamify-store";
 
 export type PlanTrack = "career" | "english" | "health" | "system";
 
-export type PlanItem = { title: string; question: string; why: string; minutes: number; track: PlanTrack };
-export type DailyPlan = { focus: string; focusQuestion: string; items: PlanItem[]; source?: "ai" | "fallback" };
+export type LearnLink = { title: string; url: string };
+
+export type PlanItem = { title: string; question: string; why: string; minutes: number; track: PlanTrack; links?: LearnLink[] };
+export type DailyPlan = { focus: string; focusQuestion: string; items: PlanItem[]; source?: "ai" | "fallback"; links?: LearnLink[] };
 export type AlignmentStatus = "aligned" | "at-risk" | "off-track";
 export type AlignmentReport = { status: AlignmentStatus; score: number; observations: string[]; correction: string; source?: "ai" | "fallback" };
 export type DietDay = { day: string; breakfast: string[]; lunch: string[]; dinner: string[]; snacks: string[] };
 export type DietPlan = { summary: string; rules: string[]; days: DietDay[] };
-export type LearningBlock = { skill: string; task: string; status: "next" | "upcoming"; minutes: number };
+export type LearningBlock = { skill: string; task: string; status: "next" | "upcoming"; minutes: number; links?: LearnLink[] };
 export type LearningPlan = { summary: string; covered: string[]; weekFocus: string[]; blocks: LearningBlock[]; interviewPrep: string[] };
 
 export type CoachSnapshot = {
@@ -118,7 +120,7 @@ export function buildCoachSnapshot(state: PersistedState, todayKey: string, day:
       learnEntries: learn.length,
       learnMinutes: learn.reduce((sum, entry) => sum + entry.minutes, 0),
       network,
-      homeFuelDays: meals.filter(([, meal]) => !meal.outsideFood && meal.items.length >= 2).length,
+      homeFuelDays: meals.filter(([, meal]) => !meal.outsideFood && meal.items.length + (meal.custom?.length ?? 0) >= 2).length,
       outsideFoodDays: meals.filter(([, meal]) => meal.outsideFood).length,
       weighIns: state.weightEntries.filter((entry) => entry.date >= weekStart).length,
     },

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/progress-bar";
 import { ScreenContainer } from "@/components/screen-container";
@@ -122,6 +122,15 @@ export default function CommandScreen() {
                 <Pressable onPress={() => setQuestionOpen((open) => !open)} hitSlop={8}>
                   <Text style={styles.expand}>{questionOpen ? "SHOW LESS ▴" : "READ FULL ▾"}</Text>
                 </Pressable>
+                {dailyPlan.links?.length ? (
+                  <View style={styles.linkRow}>
+                    {dailyPlan.links.map((link) => (
+                      <Pressable key={link.url} onPress={() => Linking.openURL(link.url).catch(() => undefined)} style={styles.linkChip}>
+                        <Text style={styles.linkChipText} numberOfLines={1}>{"READ · "}{link.title}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
               </View>
               <View style={{ gap: 8 }}>
                 {dailyPlan.items.map((item, index) => {
@@ -136,6 +145,15 @@ export default function CommandScreen() {
                           <Text style={styles.planQuestion} numberOfLines={2} ellipsizeMode="tail">
                             {item.question}
                           </Text>
+                        ) : null}
+                        {item.links?.length ? (
+                          <View style={styles.linkRow}>
+                            {item.links.map((link) => (
+                              <Pressable key={link.url} onPress={() => Linking.openURL(link.url).catch(() => undefined)} style={styles.linkChip}>
+                                <Text style={styles.linkChipText} numberOfLines={1}>{"READ · "}{link.title}</Text>
+                              </Pressable>
+                            ))}
+                          </View>
                         ) : null}
                       </View>
                       <View style={styles.planMeta}>
@@ -272,6 +290,9 @@ const styles = StyleSheet.create({
   questionBox: { backgroundColor: COLORS.cyanDim, borderRadius: 13, borderLeftWidth: 3, borderLeftColor: COLORS.cyan, padding: 11, gap: 5 },
   questionText: { color: COLORS.text, fontSize: 12, lineHeight: 18, fontWeight: "700" },
   expand: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  linkRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 },
+  linkChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4, maxWidth: "100%" },
+  linkChipText: { color: COLORS.cyan, fontSize: 8, fontWeight: "900", letterSpacing: 0.3, flexShrink: 1 },
   planItem: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: COLORS.panelSoft, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, padding: 11 },
   planItemDone: { opacity: 0.55 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: COLORS.cyan, alignItems: "center", justifyContent: "center" },

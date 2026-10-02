@@ -1,6 +1,57 @@
-import type { AlignmentReport, CoachSnapshot, DailyPlan, DietPlan, LearningPlan } from "@/lib/coach";
+import type { AlignmentReport, CoachSnapshot, DailyPlan, DietPlan, LearningPlan, LearnLink } from "@/lib/coach";
 
 type CurriculumEntry = { skill: string; topic: string; question: string };
+
+const LINKS: Record<string, LearnLink[]> = {
+  "Tokens, context windows and attention limits": [
+    { title: "OpenAI · What are tokens", url: "https://help.openai.com/en/articles/4936850-what-are-tokens-and-how-to-count-them" },
+    { title: "HuggingFace · Tokenizers docs", url: "https://huggingface.co/docs/tokenizers" },
+  ],
+  "Prompt design and strict structured output": [
+    { title: "OpenAI · Prompt engineering guide", url: "https://platform.openai.com/docs/guides/prompt-engineering" },
+    { title: "OpenAI · Structured outputs", url: "https://platform.openai.com/docs/guides/structured-outputs" },
+  ],
+  "Embeddings and vector search basics": [
+    { title: "Google Cloud · What are embeddings", url: "https://cloud.google.com/blog/topics/machine-learning/what-are-embeddings" },
+    { title: "Pinecone · Vector databases explained", url: "https://www.pinecone.io/learn/vector-database/" },
+  ],
+  "Chunk-size trade-offs": [
+    { title: "Pinecone · Chunking strategies", url: "https://www.pinecone.io/learn/chunking-strategies/" },
+    { title: "LangChain · Text splitters", url: "https://python.langchain.com/docs/concepts/text_splitters/" },
+  ],
+  "Retrieval evaluation": [
+    { title: "RAGAS · Evaluation docs", url: "https://docs.ragas.io/" },
+    { title: "OpenAI cookbook · RAG research", url: "https://cookbook.openai.com/examples/research_rag" },
+  ],
+  "Reranking and hybrid search": [
+    { title: "Cohere · Rerank docs", url: "https://docs.cohere.com/docs/rerank" },
+    { title: "Pinecone · Hybrid search", url: "https://www.pinecone.io/learn/hybrid-search-fast-retrieval/" },
+  ],
+  "Tool calling and function schemas": [
+    { title: "OpenAI · Function calling", url: "https://platform.openai.com/docs/guides/function-calling" },
+    { title: "Anthropic · Tool use", url: "https://docs.anthropic.com/en/docs/build-with-claude/tool-use" },
+  ],
+  "Agent loops and hard stopping conditions": [
+    { title: "Lilian Weng · LLM agents", url: "https://lilianweng.github.io/posts/2023-06-23-agent/" },
+    { title: "Prompting Guide · ReAct", url: "https://www.promptingguide.ai/techniques/react" },
+  ],
+  "n8n reliability: retries and idempotency": [
+    { title: "n8n · Error handling", url: "https://docs.n8n.io/workflows/error-handling/" },
+    { title: "Stripe · Idempotent requests", url: "https://stripe.com/docs/api/idempotent_requests" },
+  ],
+  "Docker and EC2 deployment basics": [
+    { title: "Docker · Get started", url: "https://docs.docker.com/get-started/" },
+    { title: "AWS · EC2 concepts", url: "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/concepts.html" },
+  ],
+  "AI system design: latency, cost and caching": [
+    { title: "12-factor app methodology", url: "https://12factor.net/" },
+    { title: "Google SRE · Monitoring", url: "https://sre.google/sre-book/monitoring-distributed-systems/" },
+  ],
+  "Explaining your shipped AI systems": [
+    { title: "The Muse · STAR interview method", url: "https://www.themuse.com/advice/star-interview-method" },
+    { title: "Coding Interview University", url: "https://github.com/jwasham/coding-interview-university" },
+  ],
+};
 
 export const CURRICULUM: CurriculumEntry[] = [
   {
@@ -97,6 +148,7 @@ export function buildFallbackDailyPlan(snapshot: CoachSnapshot): DailyPlan {
         why: "This is the next exact sub-topic after what you already covered.",
         minutes: late ? 30 : 45,
         track: "career",
+        links: LINKS[entry.topic] ?? [],
       },
       {
         title: "Voice room: explain today's topic out loud",
@@ -118,8 +170,10 @@ export function buildFallbackDailyPlan(snapshot: CoachSnapshot): DailyPlan {
         why: "The ₹6–7 LPA jump comes through people as much as skills.",
         minutes: 15,
         track: "system",
+        links: [{ title: "LinkedIn help center", url: "https://www.linkedin.com/help/linkedin" }],
       },
     ],
+    links: LINKS[entry.topic] ?? [],
   };
 }
 
@@ -180,6 +234,7 @@ export function buildFallbackLearningPlan(snapshot: CoachSnapshot): LearningPlan
     task: `${entry.topic} — ${entry.question}`,
     status: (index === 0 ? "next" : "upcoming") as "next" | "upcoming",
     minutes: 45,
+    links: LINKS[entry.topic] ?? [],
   }));
   return {
     summary: "Advance the AI-automation curriculum one exact sub-topic at a time; every block ends in a written or built output.",
@@ -211,5 +266,57 @@ export function buildFallbackDietPlan(): DietPlan {
       { day: "Sat", breakfast: ["Idli with sambar", "boiled egg"], lunch: ["Veg pulao", "raita", "dal"], dinner: ["2 chapati", "palak paneer"], snacks: ["Sprouts", "milk"] },
       { day: "Sun", breakfast: ["Paratha with curd", "banana milkshake"], lunch: ["Dal khichdi", "curd", "salad"], dinner: ["2 chapati", "mix-veg", "paneer"], snacks: ["Peanuts", "banana"] },
     ],
+  };
+}
+
+
+const KEYWORD_MAP: { words: string[]; topic: string }[] = [
+  { words: ["chunk"], topic: "Chunk-size trade-offs" },
+  { words: ["sampling", "temperature", "top-p", "structured output", "json schema", "prompt"], topic: "Prompt design and strict structured output" },
+  { words: ["embedding", "vector"], topic: "Embeddings and vector search basics" },
+  { words: ["retrieval", "recall", "evaluation", "mrr"], topic: "Retrieval evaluation" },
+  { words: ["rerank", "hybrid", "bm25"], topic: "Reranking and hybrid search" },
+  { words: ["tool", "function call"], topic: "Tool calling and function schemas" },
+  { words: ["agent", "react", "loop"], topic: "Agent loops and hard stopping conditions" },
+  { words: ["n8n", "idempot", "retry", "retries"], topic: "n8n reliability: retries and idempotency" },
+  { words: ["docker", "ec2", "deploy", "container"], topic: "Docker and EC2 deployment basics" },
+  { words: ["latency", "cost", "caching", "cache", "system design"], topic: "AI system design: latency, cost and caching" },
+  { words: ["interview", "story", "explain", "behaviour", "behavior"], topic: "Explaining your shipped AI systems" },
+  { words: ["token", "context window", "attention"], topic: "Tokens, context windows and attention limits" },
+];
+
+const GENERIC_LINKS: LearnLink[] = [
+  { title: "Prompting Guide · Learn", url: "https://www.promptingguide.ai/" },
+  { title: "HuggingFace · Courses", url: "https://huggingface.co/learn" },
+];
+
+export function linksForText(text: string): LearnLink[] {
+  const lower = text.toLowerCase();
+  for (const mapping of KEYWORD_MAP) {
+    if (mapping.words.some((word) => lower.includes(word))) {
+      return LINKS[mapping.topic] ?? GENERIC_LINKS;
+    }
+  }
+  return GENERIC_LINKS;
+}
+
+export function ensurePlanLinks(plan: DailyPlan): DailyPlan {
+  return {
+    ...plan,
+    links: plan.links?.length ? plan.links : linksForText(`${plan.focus} ${plan.focusQuestion}`),
+    items: plan.items.map((item) => ({
+      ...item,
+      links: item.links?.length ? item.links : linksForText(`${item.title} ${item.question}`),
+    })),
+  };
+}
+
+export function ensureLearningLinks(plan: LearningPlan): LearningPlan {
+  return {
+    ...plan,
+    blocks: plan.blocks.map((block) => ({
+      ...block,
+      links: block.links?.length ? block.links : linksForText(`${block.skill} ${block.task}`),
+    })),
   };
 }

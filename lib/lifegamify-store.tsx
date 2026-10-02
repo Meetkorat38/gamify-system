@@ -15,6 +15,7 @@ import {
   type SkillState,
   type TrackKey,
 } from "@/constants/gamify";
+import { parseFoodEntry, type ParsedFood } from "@/constants/food";
 
 export type QuestStatus = "pending" | "full" | "partial" | "minimum" | "skipped";
 
@@ -74,7 +75,7 @@ export type NetworkLog = {
   referrals: number;
 };
 
-export type MealLog = { items: string[]; outsideFood: boolean };
+export type MealLog = { items: string[]; outsideFood: boolean; custom?: ParsedFood[] };
 
 export type PersistedState = {
   xp: number;
@@ -208,7 +209,7 @@ export function homeFoodStreak(state: PersistedState) {
   const cursor = new Date();
   const isHomeDay = (key: string) => {
     const meal = state.mealLogs?.[key];
-    return Boolean(meal && !meal.outsideFood && Array.isArray(meal.items) && meal.items.length > 0);
+    return Boolean(meal && !meal.outsideFood && ((meal.items?.length ?? 0) + (meal.custom?.length ?? 0)) > 0);
   };
   if (!isHomeDay(dateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
   while (isHomeDay(dateKey(cursor))) {
@@ -237,6 +238,7 @@ type StoreValue = {
   logLearn: (entry: Omit<LearnLog, "date">) => void;
   saveNetwork: (counts: NetworkLog) => void;
   saveMeals: (meal: MealLog) => void;
+  logCustomFood: (text: string) => void;
   setSkill: (skillId: string, next: SkillState) => void;
   saveAi: (key: string, data: unknown) => void;
   togglePlanItem: (key: string) => void;
@@ -412,8 +414,10 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
         });
       },
       saveMeals: (meal) => {
-        const qualifies = meal.items.length >= 2 && !meal.outsideFood;
         setState((current) => {
+          const existing = current.mealLogs[todayKey];
+          const merged: MealLog = { ...meal, custom: existing?.custom ?? [] };
+          const qualifies = merged.items.length + (merged.custom?.length ?? 0) >= 2 && !merged.outsideFood;
           const previous = current.logs[todayKey] ?? blankLog();
           const bonuses = previous.bonuses ?? {};
           const earned = qualifies && !bonuses.meals;
@@ -424,7 +428,28 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
               ...current.logs,
               [todayKey]: { ...previous, bonuses: { ...bonuses, ...(earned || bonuses.meals ? { meals: true } : {}) } },
             },
-            mealLogs: { ...current.mealLogs, [todayKey]: meal },
+            mealLogs: { ...current.mealLogs, [todayKey]: merged },
+          };
+        });
+      },
+      logCustomFood: (text) => {
+        const parsed = parseFoodEntry(text);
+        if (!parsed.length) return;
+        setState((current) => {
+          const existing = current.mealLogs[todayKey] ?? { items: [], outsideFood: false };
+          const merged: MealLog = { ...existing, custom: [...(existing.custom ?? []), ...parsed] };
+          const qualifies = merged.items.length + (merged.custom?.length ?? 0) >= 2 && !merged.outsideFood;
+          const previous = current.logs[todayKey] ?? blankLog();
+          const bonuses = previous.bonuses ?? {};
+          const earned = qualifies && !bonuses.meals;
+          return {
+            ...current,
+            xp: current.xp + (earned ? BONUS_XP.meals : 0),
+            logs: {
+              ...current.logs,
+              [todayKey]: { ...previous, bonuses: { ...bonuses, ...(earned || bonuses.meals ? { meals: true } : {}) } },
+            },
+            mealLogs: { ...current.mealLogs, [todayKey]: merged },
           };
         });
       },
