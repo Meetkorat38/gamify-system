@@ -51,3 +51,11 @@ Life Gamify is a mobile-first personal progression system for Meet's 90-day camp
   - Weekly personalized diet plan: vegetarian + eggs, home food only, weight-gain toward the editable goal.
   - Weekly personalized learning plan driven by the skill-gap checklist, with interview-prep items.
 - **State snapshots:** compact snapshot builder (`buildCoachSnapshot`) sends only aggregates (week activity, skill states, weight trend, recent English scores) to the model.
+
+## Automatic daily mission (agent behavior)
+
+The coach decides without user prompting. On app open, the Command screen auto-analyzes once per day (cache key `daily:<date>`) and renders the "Today's Mission" hero: the exact focus sub-topic, one specific question or executable task with a deliverable, and 4–6 checkable actions, each with its own concrete question. Prompts forbid generic topics ("learn LLM") and require exact sub-topic names.
+
+Curriculum continuity is enforced through the state snapshot: `topicsCovered` (learn-log titles/takeaways plus completed mission items from the last 3 days) and `recentActions` (recent mission items with done flags) let the model pick the logical next topic instead of repeating finished work. `hourOfDay` and `weekday` make loads time-aware (deep work in mornings, lighter late loads). The weekly learning plan shows a covered → next → upcoming sequence.
+
+Model policy: DeepSeek v4.1 Flash and DeepSeek v4 Pro lead (paid accepted by owner), then Muse Spark 1.3, then free Gemma/Qwen as last resort; `OPENROUTER_MODEL` pins an override. The Command screen styling uses a cyan-glow hero panel, question callout, and an AUTO status stamp so the app reads as an agent briefing rather than a form.

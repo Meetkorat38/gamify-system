@@ -87,7 +87,7 @@ export default function CommandScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.heroLabel}>{"// AGENT BRIEF · "}{greetingFor(hour)}</Text>
-            <Text style={styles.heroAuto}>{dailyPlan ? "AUTO ✓" : busyDaily ? "ANALYZING…" : "AUTO"}</Text>
+            <Text style={styles.heroAuto}>{dailyPlan ? (dailyPlan.source === "fallback" ? "CURRICULUM ✓" : "AI ✓") : busyDaily ? "ANALYZING…" : "AUTO"}</Text>
           </View>
           {dailyPlan ? (
             <View style={{ gap: 12 }}>
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   dayBadge: { borderWidth: 1, borderColor: COLORS.cyan, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8, alignItems: "center", minWidth: 58, backgroundColor: COLORS.cyanDim },
   dayLabel: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
   dayNumber: { color: COLORS.text, fontSize: 22, fontWeight: "900", lineHeight: 24 },
-  hero: { backgroundColor: COLORS.panel, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.cyan, padding: 16, gap: 12, shadowColor: COLORS.cyan, shadowOpacity: 0.22, shadowRadius: 16, elevation: 8 },
+  hero: { backgroundColor: COLORS.panel, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.cyan, padding: 16, gap: 12, boxShadow: "0px 0px 16px rgba(67, 231, 255, 0.22)", elevation: 8 },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   heroLabel: { color: COLORS.cyan, fontSize: 10, fontWeight: "900", letterSpacing: 1.3 },
   heroAuto: { color: COLORS.lime, fontSize: 9, fontWeight: "900", letterSpacing: 0.9 },

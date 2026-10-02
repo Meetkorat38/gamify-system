@@ -4,7 +4,7 @@ import type { PersistedState } from "@/lib/lifegamify-store";
 export type PlanTrack = "career" | "english" | "health" | "system";
 
 export type PlanItem = { title: string; question: string; why: string; minutes: number; track: PlanTrack };
-export type DailyPlan = { focus: string; focusQuestion: string; items: PlanItem[] };
+export type DailyPlan = { focus: string; focusQuestion: string; items: PlanItem[]; source?: "ai" | "fallback" };
 export type AlignmentStatus = "aligned" | "at-risk" | "off-track";
 export type AlignmentReport = { status: AlignmentStatus; score: number; observations: string[]; correction: string };
 export type DietDay = { day: string; breakfast: string[]; lunch: string[]; dinner: string[]; snacks: string[] };
