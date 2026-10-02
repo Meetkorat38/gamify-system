@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useRef } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/progress-bar";
 import { ScreenContainer } from "@/components/screen-container";
+import { Spot } from "@/components/spot";
+import { XpRing } from "@/components/xp-ring";
 import { BASE_WEIGHT, COLORS, rankForLevel, SKILLS, TRACKS, weekStartKey, xpIntoLevel } from "@/constants/gamify";
 import type { PlanTrack } from "@/lib/coach";
 import { QUESTS, useLifeGamify } from "@/lib/lifegamify-store";
@@ -31,6 +33,12 @@ export default function CommandScreen() {
   const { state, todayKey, todayLog, dayNumber, phase, phaseCopy, level, recoveryDays, loading, togglePlanItem } = useLifeGamify();
   const { dailyPlan, alignment, generateDailyPlan, generateAlignment, busyDaily, busyAlign } = useCoach();
   const started = useRef(false);
+  const [heroAnim] = useState(() => new Animated.Value(0));
+  const [questionOpen, setQuestionOpen] = useState(false);
+
+  useEffect(() => {
+    Animated.timing(heroAnim, { toValue: 1, duration: 480, useNativeDriver: true }).start();
+  }, [heroAnim]);
 
   useEffect(() => {
     if (loading || started.current) return;
@@ -84,20 +92,36 @@ export default function CommandScreen() {
           <View style={styles.dayBadge}><Text style={styles.dayLabel}>DAY</Text><Text style={styles.dayNumber}>{dayNumber}</Text><Text style={styles.dayLabel}>/ 90</Text></View>
         </View>
 
-        <View style={styles.hero}>
+        <Animated.View
+          style={[
+            styles.hero,
+            {
+              opacity: heroAnim,
+              transform: [{ translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+            },
+          ]}
+        >
           <View style={styles.heroTop}>
             <Text style={styles.heroLabel}>{"// AGENT BRIEF · "}{greetingFor(hour)}</Text>
             <Text style={styles.heroAuto}>{dailyPlan ? (dailyPlan.source === "fallback" ? "CURRICULUM ✓" : "AI ✓") : busyDaily ? "ANALYZING…" : "AUTO"}</Text>
           </View>
           {dailyPlan ? (
             <View style={{ gap: 12 }}>
-              <View>
-                <Text style={styles.heroKicker}>TODAY’S TOPIC</Text>
-                <Text style={styles.heroFocus}>{dailyPlan.focus}</Text>
+              <View style={styles.heroTopicRow}>
+                <View style={styles.heroTopicText}>
+                  <Text style={styles.heroKicker}>TODAY’S TOPIC</Text>
+                  <Text style={styles.heroFocus} numberOfLines={3}>{dailyPlan.focus}</Text>
+                </View>
+                <Spot name="hero" size={72} style={styles.heroSpot} />
               </View>
               <View style={styles.questionBox}>
                 <Text style={styles.heroKicker}>THE SPECIFIC QUESTION</Text>
-                <Text style={styles.questionText}>{dailyPlan.focusQuestion}</Text>
+                <Text style={styles.questionText} numberOfLines={questionOpen ? undefined : 3} ellipsizeMode="tail">
+                  {dailyPlan.focusQuestion}
+                </Text>
+                <Pressable onPress={() => setQuestionOpen((open) => !open)} hitSlop={8}>
+                  <Text style={styles.expand}>{questionOpen ? "SHOW LESS ▴" : "READ FULL ▾"}</Text>
+                </Pressable>
               </View>
               <View style={{ gap: 8 }}>
                 {dailyPlan.items.map((item, index) => {
@@ -105,11 +129,14 @@ export default function CommandScreen() {
                   const done = Boolean(state.planChecks[key]);
                   return (
                     <Pressable key={key} onPress={() => togglePlanItem(key)} style={[styles.planItem, done && styles.planItemDone]}>
-                      <View style={[styles.checkbox, done && styles.checkboxOn]}>{done ? <Ionicons name="checkmark" size={12} color={COLORS.ink} /> : null}</View>
+                      <View style={[styles.checkbox, done && styles.checkboxOn]}>{done ? <Ionicons name="checkmark" size={12} color={COLORS.white} /> : null}</View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.planTitle, done && styles.planTitleDone]}>{item.title}</Text>
-                        {item.question ? <Text style={styles.planQuestion}>{item.question}</Text> : null}
-                        <Text style={styles.planWhy}>{item.why}</Text>
+                        <Text style={[styles.planTitle, done && styles.planTitleDone]} numberOfLines={1}>{item.title}</Text>
+                        {item.question ? (
+                          <Text style={styles.planQuestion} numberOfLines={2} ellipsizeMode="tail">
+                            {item.question}
+                          </Text>
+                        ) : null}
                       </View>
                       <View style={styles.planMeta}>
                         <Text style={[styles.planTrack, { color: PLAN_STYLE[item.track] }]}>{item.track.toUpperCase()}</Text>
@@ -126,14 +153,14 @@ export default function CommandScreen() {
           ) : busyDaily ? (
             <View style={styles.heroLoading}>
               <ActivityIndicator color={COLORS.cyan} />
-              <Text style={styles.heroLoadingText}>Building today’s mission from what you already learned…</Text>
+              <Text style={styles.heroLoadingText}>Building today’s mission…</Text>
             </View>
           ) : (
             <Pressable onPress={() => generateDailyPlan().catch(() => undefined)} style={({ pressed }) => [styles.reanalyze, pressed && styles.pressed]}>
               <Text style={styles.reanalyzeText}>TAP TO RETRY ANALYSIS</Text>
             </Pressable>
           )}
-        </View>
+        </Animated.View>
 
         <Pressable onPress={() => generateAlignment().catch(() => undefined)} style={[styles.alignCard, { borderColor: alignment ? ALIGN_COLOR[alignment.status] ?? COLORS.amber : COLORS.line }]}>
           <View style={styles.sectionHeader}>
@@ -143,20 +170,24 @@ export default function CommandScreen() {
           {alignment ? (
             <View style={{ gap: 5 }}>
               <Text style={[styles.alignStatus, { color: ALIGN_COLOR[alignment.status] ?? COLORS.amber }]}>{alignment.status.toUpperCase()}</Text>
-              <Text style={styles.planWhy}>{alignment.correction}</Text>
+              <Text style={styles.planWhy} numberOfLines={2} ellipsizeMode="tail">{alignment.correction}</Text>
             </View>
           ) : (
-            <Text style={styles.planWhy}>{busyAlign ? "Checking alignment with the ₹6–7 LPA goal…" : "Automatic check runs with today’s brief."}</Text>
+            <Text style={styles.planWhy}>{busyAlign ? "Checking your week…" : "Runs automatically with today’s brief."}</Text>
           )}
         </Pressable>
 
         <View style={styles.xpCard}>
           <View style={styles.xpTop}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.eyebrow}>CURRENT RUN</Text>
               <Text style={styles.xpValue}>{state.xp} <Text style={styles.xpUnit}>XP</Text></Text>
+              <View style={styles.streak}><Ionicons name="flame" color={COLORS.amber} size={15} /><Text style={styles.streakText}>{state.streak} DAY CHAIN</Text></View>
             </View>
-            <View style={styles.streak}><Ionicons name="flame" color={COLORS.amber} size={17} /><Text style={styles.streakText}>{state.streak} DAY CHAIN</Text></View>
+            <XpRing percent={xpIntoLevel(state.xp)} size={64} stroke={7} color={COLORS.cyan}>
+              <Text style={styles.ringLevel}>{level}</Text>
+              <Text style={styles.ringCaption}>LEVEL</Text>
+            </XpRing>
           </View>
           <ProgressBar value={xpIntoLevel(state.xp)} color={COLORS.cyan} height={8} />
           <View style={styles.xpBottom}>
@@ -167,14 +198,14 @@ export default function CommandScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>{"// TRACK SIGNALS"}</Text>
-          <Text style={styles.muted}>week progress</Text>
+          <Text style={styles.muted}>this week</Text>
         </View>
         <View style={styles.signalRow}>
           {([["career", careerProgress], ["english", englishProgress], ["health", healthProgress]] as const).map(([key, progress]) => {
             const track = TRACKS[key];
             return (
               <View key={key} style={styles.signalCard}>
-                <Text style={[styles.signalIcon, { color: track.color }]}>{track.icon}</Text>
+                <Spot name={key} size={38} />
                 <Text style={styles.signalName}>{track.short}</Text>
                 <Text style={[styles.signalPercent, { color: track.color }]}>{progress}%</Text>
                 <ProgressBar value={progress} color={track.color} height={4} />
@@ -191,7 +222,7 @@ export default function CommandScreen() {
           <View style={styles.questGlyph}><Text style={styles.questGlyphText}>✦</Text></View>
           <View style={{ flex: 1, gap: 5 }}>
             <Text style={styles.questTitle}>Reach ₹6–7 LPA</Text>
-            <Text style={styles.questCopy}>{phaseCopy}</Text>
+            <Text style={styles.questCopy} numberOfLines={2} ellipsizeMode="tail">{phaseCopy}</Text>
             <View style={styles.questTargets}>
               <Text style={styles.targetText}>CURRENT <Text style={styles.targetStrong}>₹3.6 LPA</Text></Text>
               <Text style={styles.targetText}>TARGET <Text style={[styles.targetStrong, { color: COLORS.lime }]}>₹7 LPA</Text></Text>
@@ -200,19 +231,19 @@ export default function CommandScreen() {
         </View>
 
         <Pressable onPress={() => router.navigate(next.route as never)} style={({ pressed }) => [styles.nextAction, pressed && styles.pressed]}>
-          <View style={styles.nextIcon}><Ionicons name="arrow-forward" color={COLORS.ink} size={18} /></View>
+          <View style={styles.nextIcon}><Ionicons name="arrow-forward" color={COLORS.cyan} size={18} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>NEXT ACTION</Text>
-            <Text style={styles.nextTitle}>{loading ? "Loading your run…" : next.title}</Text>
-            <Text style={styles.nextCopy}>{recoveryDays >= 2 ? "Recovery mode is active. Choose the smallest version." : next.copy}</Text>
+            <Text style={styles.nextKicker}>NEXT ACTION</Text>
+            <Text style={styles.nextTitle} numberOfLines={1}>{loading ? "Loading your run…" : next.title}</Text>
+            <Text style={styles.nextCopy} numberOfLines={2} ellipsizeMode="tail">{recoveryDays >= 2 ? "Recovery mode is active. Choose the smallest version." : next.copy}</Text>
           </View>
-          <Ionicons name="chevron-forward" color={COLORS.cyan} size={20} />
+          <Ionicons name="chevron-forward" color={COLORS.white} size={20} />
         </Pressable>
 
         {recoveryDays >= 2 ? (
           <View style={styles.recovery}>
             <Ionicons name="shield-checkmark-outline" color={COLORS.lime} size={18} />
-            <Text style={styles.recoveryText}>RECOVERY MODE · No reset. Reduce difficulty and keep the run alive.</Text>
+            <Text style={styles.recoveryText} numberOfLines={2}>RECOVERY MODE · No reset. Reduce difficulty and keep the run alive.</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -233,17 +264,21 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   heroLabel: { color: COLORS.cyan, fontSize: 10, fontWeight: "900", letterSpacing: 1.3 },
   heroAuto: { color: COLORS.lime, fontSize: 9, fontWeight: "900", letterSpacing: 0.9 },
+  heroTopicRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroTopicText: { flex: 1, gap: 4 },
+  heroSpot: { opacity: 0.95 },
   heroKicker: { color: COLORS.muted, fontSize: 8, fontWeight: "900", letterSpacing: 1.2 },
-  heroFocus: { color: COLORS.text, fontSize: 20, fontWeight: "900", lineHeight: 26, marginTop: 4 },
+  heroFocus: { color: COLORS.text, fontSize: 19, fontWeight: "900", lineHeight: 25, marginTop: 2 },
   questionBox: { backgroundColor: COLORS.cyanDim, borderRadius: 13, borderLeftWidth: 3, borderLeftColor: COLORS.cyan, padding: 11, gap: 5 },
-  questionText: { color: COLORS.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
-  planItem: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: COLORS.panelSoft, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, padding: 11 },
+  questionText: { color: COLORS.text, fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  expand: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  planItem: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: COLORS.panelSoft, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, padding: 11 },
   planItemDone: { opacity: 0.55 },
-  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: COLORS.cyan, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: COLORS.cyan, alignItems: "center", justifyContent: "center" },
   checkboxOn: { backgroundColor: COLORS.cyan, borderColor: COLORS.cyan },
   planTitle: { color: COLORS.text, fontSize: 12, fontWeight: "800" },
   planTitleDone: { textDecorationLine: "line-through" },
-  planQuestion: { color: COLORS.cyan, fontSize: 10, lineHeight: 15, marginTop: 3, fontStyle: "italic" },
+  planQuestion: { color: COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 3 },
   planWhy: { color: COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 3 },
   planMeta: { alignItems: "flex-end", gap: 3 },
   planTrack: { fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
@@ -258,16 +293,17 @@ const styles = StyleSheet.create({
   alignScore: { fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
   alignStatus: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   xpCard: { backgroundColor: COLORS.panel, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.line, gap: 11 },
-  xpTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  xpTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   xpValue: { color: COLORS.text, fontSize: 28, fontWeight: "900", marginTop: 3 },
   xpUnit: { color: COLORS.cyan, fontSize: 12, letterSpacing: 1 },
-  streak: { flexDirection: "row", gap: 5, alignItems: "center", backgroundColor: COLORS.amberDim, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6 },
+  streak: { flexDirection: "row", gap: 5, alignItems: "center", backgroundColor: COLORS.amberDim, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, alignSelf: "flex-start", marginTop: 6 },
   streakText: { color: COLORS.amber, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
+  ringLevel: { color: COLORS.text, fontSize: 18, fontWeight: "900" },
+  ringCaption: { color: COLORS.muted, fontSize: 7, fontWeight: "900", letterSpacing: 1, textAlign: "center" },
   xpBottom: { flexDirection: "row", justifyContent: "space-between" },
   muted: { color: COLORS.muted, fontSize: 10, fontWeight: "700" },
   signalRow: { flexDirection: "row", gap: 9 },
-  signalCard: { flex: 1, backgroundColor: COLORS.panel, borderRadius: 15, padding: 12, gap: 6, borderWidth: 1, borderColor: COLORS.line },
-  signalIcon: { fontSize: 16, fontWeight: "900" },
+  signalCard: { flex: 1, backgroundColor: COLORS.panel, borderRadius: 15, padding: 12, gap: 6, borderWidth: 1, borderColor: COLORS.line, alignItems: "flex-start" },
   signalName: { color: COLORS.text, fontSize: 11, fontWeight: "800" },
   signalPercent: { fontSize: 15, fontWeight: "900" },
   phaseChip: { borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: COLORS.amberDim },
@@ -281,8 +317,9 @@ const styles = StyleSheet.create({
   targetText: { color: COLORS.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.7 },
   targetStrong: { color: COLORS.text, fontSize: 11 },
   nextAction: { flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: COLORS.cyan, padding: 15 },
-  nextIcon: { width: 35, height: 35, borderRadius: 12, backgroundColor: COLORS.text, alignItems: "center", justifyContent: "center" },
-  nextTitle: { color: COLORS.ink, fontSize: 16, fontWeight: "900", marginTop: 3 },
+  nextIcon: { width: 35, height: 35, borderRadius: 12, backgroundColor: COLORS.white, alignItems: "center", justifyContent: "center" },
+  nextKicker: { color: "#DCE4FF", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  nextTitle: { color: COLORS.white, fontSize: 16, fontWeight: "900", marginTop: 3 },
   nextCopy: { color: "#E9EEFF", fontSize: 11, lineHeight: 15, marginTop: 2 },
   recovery: { flexDirection: "row", gap: 8, alignItems: "center", borderRadius: 13, borderWidth: 1, borderColor: COLORS.lime, backgroundColor: COLORS.limeDim, padding: 12 },
   recoveryText: { flex: 1, color: COLORS.lime, fontSize: 11, lineHeight: 15, fontWeight: "700" },

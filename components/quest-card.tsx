@@ -27,7 +27,11 @@ export function QuestCard({ quest, status, onSelect, compact = false }: QuestCar
         <View style={styles.heading}>
           <Text style={styles.kicker}>{track.label} {"//"} +{quest.points} XP</Text>
           <Text style={styles.title}>{quest.title}</Text>
-          {!compact ? <Text style={styles.subtitle}>{quest.subtitle}</Text> : null}
+          {!compact ? (
+            <Text style={styles.subtitle} numberOfLines={2} ellipsizeMode="tail">
+              {quest.subtitle}
+            </Text>
+          ) : null}
         </View>
         {status !== "pending" ? <Text style={[styles.status, { color: track.color }]}>{statusLabel(status)}</Text> : null}
       </View>
