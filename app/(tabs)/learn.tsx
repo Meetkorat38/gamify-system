@@ -134,6 +134,9 @@ export default function LearnScreen() {
           {learningPlan ? (
             <View style={{ gap: 9 }}>
               <Text style={styles.planSummary}>{learningPlan.summary}</Text>
+              {learningPlan.covered.length ? (
+                <Text style={styles.coveredLine}>COVERED: {learningPlan.covered.join(" · ")}</Text>
+              ) : null}
               <View style={styles.focusRow}>
                 {learningPlan.weekFocus.map((focus) => (
                   <View key={focus} style={styles.focusChip}>
@@ -143,7 +146,10 @@ export default function LearnScreen() {
               </View>
               {learningPlan.blocks.map((block) => (
                 <View key={`${block.skill}-${block.task}`} style={styles.blockRow}>
-                  <Text style={styles.blockSkill}>{block.skill}</Text>
+                  <View style={styles.blockHead}>
+                    <Text style={styles.blockSkill}>{block.skill}</Text>
+                    <Text style={styles.blockStatus}>{block.status === "next" ? "NEXT" : "UPCOMING"}</Text>
+                  </View>
                   <Text style={styles.blockTask}>{block.task}</Text>
                   <Text style={styles.blockMinutes}>{block.minutes} MIN</Text>
                 </View>
@@ -297,6 +303,9 @@ const styles = StyleSheet.create({
   focusChip: { backgroundColor: COLORS.amberDim, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5 },
   focusChipText: { color: COLORS.amber, fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   blockRow: { borderTopWidth: 1, borderTopColor: COLORS.line, paddingTop: 8, gap: 3 },
+  blockHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  blockStatus: { color: COLORS.amber, fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
+  coveredLine: { color: COLORS.lime, fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 0.4 },
   blockSkill: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   blockTask: { color: COLORS.text, fontSize: 12, lineHeight: 17 },
   blockMinutes: { color: COLORS.muted, fontSize: 9, fontWeight: "800" },

@@ -21,6 +21,12 @@ const ALIGN_COLOR: Record<string, string> = { aligned: COLORS.lime, "at-risk": C
 
 type Action = { title: string; copy: string; route: string };
 
+const greetingFor = (hour: number) => {
+  if (hour < 12) return "MORNING RUN";
+  if (hour < 17) return "AFTERNOON RUN";
+  return "EVENING RUN";
+};
+
 export default function CommandScreen() {
   const { state, todayKey, todayLog, dayNumber, phase, phaseCopy, level, recoveryDays, loading, togglePlanItem } = useLifeGamify();
   const { dailyPlan, alignment, generateDailyPlan, generateAlignment, busyDaily, busyAlign } = useCoach();
@@ -33,6 +39,7 @@ export default function CommandScreen() {
     if (!alignment) generateAlignment().catch(() => undefined);
   }, [loading, dailyPlan, alignment, generateDailyPlan, generateAlignment]);
 
+  const hour = new Date().getHours();
   const completed = QUESTS.filter((quest) => todayLog.statuses[quest.id] && todayLog.statuses[quest.id] !== "pending").length;
   const weekStart = weekStartKey();
   const skillScore = SKILLS.reduce((sum, skill) => {
@@ -77,27 +84,61 @@ export default function CommandScreen() {
           <View style={styles.dayBadge}><Text style={styles.dayLabel}>DAY</Text><Text style={styles.dayNumber}>{dayNumber}</Text><Text style={styles.dayLabel}>/ 90</Text></View>
         </View>
 
-        <View style={styles.xpCard}>
-          <View style={styles.xpTop}><View><Text style={styles.eyebrow}>CURRENT RUN</Text><Text style={styles.xpValue}>{state.xp} <Text style={styles.xpUnit}>XP</Text></Text></View><View style={styles.streak}><Ionicons name="flame" color={COLORS.amber} size={17} /><Text style={styles.streakText}>{state.streak} DAY CHAIN</Text></View></View>
-          <ProgressBar value={xpIntoLevel(state.xp)} color={COLORS.cyan} height={8} />
-          <View style={styles.xpBottom}><Text style={styles.muted}>LEVEL {level} → {level + 1}</Text><Text style={styles.muted}>{xpIntoLevel(state.xp)} / 100</Text></View>
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <Text style={styles.heroLabel}>{"// AGENT BRIEF · "}{greetingFor(hour)}</Text>
+            <Text style={styles.heroAuto}>{dailyPlan ? "AUTO ✓" : busyDaily ? "ANALYZING…" : "AUTO"}</Text>
+          </View>
+          {dailyPlan ? (
+            <View style={{ gap: 12 }}>
+              <View>
+                <Text style={styles.heroKicker}>TODAY’S TOPIC</Text>
+                <Text style={styles.heroFocus}>{dailyPlan.focus}</Text>
+              </View>
+              <View style={styles.questionBox}>
+                <Text style={styles.heroKicker}>THE SPECIFIC QUESTION</Text>
+                <Text style={styles.questionText}>{dailyPlan.focusQuestion}</Text>
+              </View>
+              <View style={{ gap: 8 }}>
+                {dailyPlan.items.map((item, index) => {
+                  const key = `${todayKey}:${index}`;
+                  const done = Boolean(state.planChecks[key]);
+                  return (
+                    <Pressable key={key} onPress={() => togglePlanItem(key)} style={[styles.planItem, done && styles.planItemDone]}>
+                      <View style={[styles.checkbox, done && styles.checkboxOn]}>{done ? <Ionicons name="checkmark" size={12} color={COLORS.ink} /> : null}</View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.planTitle, done && styles.planTitleDone]}>{item.title}</Text>
+                        {item.question ? <Text style={styles.planQuestion}>{item.question}</Text> : null}
+                        <Text style={styles.planWhy}>{item.why}</Text>
+                      </View>
+                      <View style={styles.planMeta}>
+                        <Text style={[styles.planTrack, { color: PLAN_STYLE[item.track] }]}>{item.track.toUpperCase()}</Text>
+                        <Text style={styles.planMinutes}>{item.minutes} MIN</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Pressable onPress={() => generateDailyPlan().catch(() => undefined)} style={({ pressed }) => [styles.reanalyze, pressed && styles.pressed]} disabled={busyDaily}>
+                <Text style={styles.reanalyzeText}>{busyDaily ? "RE-ANALYZING…" : "↻ RE-ANALYZE"}</Text>
+              </Pressable>
+            </View>
+          ) : busyDaily ? (
+            <View style={styles.heroLoading}>
+              <ActivityIndicator color={COLORS.cyan} />
+              <Text style={styles.heroLoadingText}>Building today’s mission from what you already learned…</Text>
+            </View>
+          ) : (
+            <Pressable onPress={() => generateDailyPlan().catch(() => undefined)} style={({ pressed }) => [styles.reanalyze, pressed && styles.pressed]}>
+              <Text style={styles.reanalyzeText}>TAP TO RETRY ANALYSIS</Text>
+            </Pressable>
+          )}
         </View>
-
-        <View style={styles.sectionHeader}><Text style={styles.sectionLabel}>{"// TRACK SIGNALS"}</Text><Text style={styles.muted}>{completed}/3 quests logged</Text></View>
-        <View style={styles.signalRow}>
-          {([["career", careerProgress], ["english", englishProgress], ["health", healthProgress]] as const).map(([key, progress]) => {
-            const track = TRACKS[key];
-            return <View key={key} style={styles.signalCard}><Text style={[styles.signalIcon, { color: track.color }]}>{track.icon}</Text><Text style={styles.signalName}>{track.short}</Text><Text style={[styles.signalPercent, { color: track.color }]}>{progress}%</Text><ProgressBar value={progress} color={track.color} height={4} /></View>;
-          })}
-        </View>
-
-        <View style={styles.sectionHeader}><Text style={styles.sectionLabel}>{"// MAIN QUEST"}</Text><View style={styles.phaseChip}><Text style={styles.phaseText}>{phase}</Text></View></View>
-        <View style={styles.mainQuest}><View style={styles.questGlyph}><Text style={styles.questGlyphText}>✦</Text></View><View style={{ flex: 1, gap: 5 }}><Text style={styles.questTitle}>Reach ₹6–7 LPA</Text><Text style={styles.questCopy}>{phaseCopy}</Text><View style={styles.questTargets}><Text style={styles.targetText}>CURRENT <Text style={styles.targetStrong}>₹3.6 LPA</Text></Text><Text style={styles.targetText}>TARGET <Text style={[styles.targetStrong, { color: COLORS.lime }]}>₹7 LPA</Text></Text></View></View></View>
 
         <Pressable onPress={() => generateAlignment().catch(() => undefined)} style={[styles.alignCard, { borderColor: alignment ? ALIGN_COLOR[alignment.status] ?? COLORS.amber : COLORS.line }]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>{"// GOAL ALIGNMENT"}</Text>
-            <Text style={[styles.alignScore, { color: alignment ? ALIGN_COLOR[alignment.status] ?? COLORS.amber : COLORS.muted }]}>{alignment ? `${alignment.score}/100` : busyAlign ? "…" : "TAP TO RUN"}</Text>
+            <Text style={[styles.alignScore, { color: alignment ? ALIGN_COLOR[alignment.status] ?? COLORS.amber : COLORS.muted }]}>{alignment ? `${alignment.score}/100` : busyAlign ? "…" : "AUTO"}</Text>
           </View>
           {alignment ? (
             <View style={{ gap: 5 }}>
@@ -105,57 +146,82 @@ export default function CommandScreen() {
               <Text style={styles.planWhy}>{alignment.correction}</Text>
             </View>
           ) : (
-            <Text style={styles.planWhy}>{busyAlign ? "Checking your alignment…" : "Get an honest aligned / at-risk / off-track read against the ₹6–7 LPA goal."}</Text>
+            <Text style={styles.planWhy}>{busyAlign ? "Checking alignment with the ₹6–7 LPA goal…" : "Automatic check runs with today’s brief."}</Text>
           )}
         </Pressable>
 
-        <View style={styles.briefCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>{"// TODAY’S AI BRIEF"}</Text>
-            <Pressable onPress={() => generateDailyPlan().catch(() => undefined)} disabled={busyDaily}><Text style={styles.regen}>{busyDaily ? "…" : "REGENERATE"}</Text></Pressable>
-          </View>
-          {dailyPlan ? (
-            <View style={{ gap: 8 }}>
-              <Text style={styles.briefFocus}>{dailyPlan.focus}</Text>
-              {dailyPlan.items.map((item, index) => {
-                const key = `${todayKey}:${index}`;
-                const done = Boolean(state.planChecks[key]);
-                return (
-                  <Pressable key={key} onPress={() => togglePlanItem(key)} style={[styles.planItem, done && styles.planItemDone]}>
-                    <View style={[styles.checkbox, done && styles.checkboxOn]}>{done ? <Ionicons name="checkmark" size={12} color={COLORS.ink} /> : null}</View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.planTitle, done && styles.planTitleDone]}>{item.title}</Text>
-                      <Text style={styles.planWhy}>{item.why}</Text>
-                    </View>
-                    <View style={styles.planMeta}>
-                      <Text style={[styles.planTrack, { color: PLAN_STYLE[item.track] }]}>{item.track.toUpperCase()}</Text>
-                      <Text style={styles.planMinutes}>{item.minutes} MIN</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+        <View style={styles.xpCard}>
+          <View style={styles.xpTop}>
+            <View>
+              <Text style={styles.eyebrow}>CURRENT RUN</Text>
+              <Text style={styles.xpValue}>{state.xp} <Text style={styles.xpUnit}>XP</Text></Text>
             </View>
-          ) : (
-            <Pressable onPress={() => generateDailyPlan().catch(() => undefined)} style={({ pressed }) => [styles.briefButton, pressed && styles.pressed]} disabled={busyDaily}>
-              {busyDaily ? <ActivityIndicator color={COLORS.ink} /> : <Text style={styles.briefButtonText}>GENERATE TODAY’S AI PLAN</Text>}
-            </Pressable>
-          )}
+            <View style={styles.streak}><Ionicons name="flame" color={COLORS.amber} size={17} /><Text style={styles.streakText}>{state.streak} DAY CHAIN</Text></View>
+          </View>
+          <ProgressBar value={xpIntoLevel(state.xp)} color={COLORS.cyan} height={8} />
+          <View style={styles.xpBottom}>
+            <Text style={styles.muted}>LEVEL {level} → {level + 1}</Text>
+            <Text style={styles.muted}>{completed}/3 quests today</Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>{"// TRACK SIGNALS"}</Text>
+          <Text style={styles.muted}>week progress</Text>
+        </View>
+        <View style={styles.signalRow}>
+          {([["career", careerProgress], ["english", englishProgress], ["health", healthProgress]] as const).map(([key, progress]) => {
+            const track = TRACKS[key];
+            return (
+              <View key={key} style={styles.signalCard}>
+                <Text style={[styles.signalIcon, { color: track.color }]}>{track.icon}</Text>
+                <Text style={styles.signalName}>{track.short}</Text>
+                <Text style={[styles.signalPercent, { color: track.color }]}>{progress}%</Text>
+                <ProgressBar value={progress} color={track.color} height={4} />
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>{"// MAIN QUEST"}</Text>
+          <View style={styles.phaseChip}><Text style={styles.phaseText}>{phase}</Text></View>
+        </View>
+        <View style={styles.mainQuest}>
+          <View style={styles.questGlyph}><Text style={styles.questGlyphText}>✦</Text></View>
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text style={styles.questTitle}>Reach ₹6–7 LPA</Text>
+            <Text style={styles.questCopy}>{phaseCopy}</Text>
+            <View style={styles.questTargets}>
+              <Text style={styles.targetText}>CURRENT <Text style={styles.targetStrong}>₹3.6 LPA</Text></Text>
+              <Text style={styles.targetText}>TARGET <Text style={[styles.targetStrong, { color: COLORS.lime }]}>₹7 LPA</Text></Text>
+            </View>
+          </View>
         </View>
 
         <Pressable onPress={() => router.navigate(next.route as never)} style={({ pressed }) => [styles.nextAction, pressed && styles.pressed]}>
           <View style={styles.nextIcon}><Ionicons name="arrow-forward" color={COLORS.ink} size={18} /></View>
-          <View style={{ flex: 1 }}><Text style={styles.eyebrow}>NEXT ACTION</Text><Text style={styles.nextTitle}>{loading ? "Loading your run…" : next.title}</Text><Text style={styles.nextCopy}>{recoveryDays >= 2 ? "Recovery mode is active. Choose the smallest version." : next.copy}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>NEXT ACTION</Text>
+            <Text style={styles.nextTitle}>{loading ? "Loading your run…" : next.title}</Text>
+            <Text style={styles.nextCopy}>{recoveryDays >= 2 ? "Recovery mode is active. Choose the smallest version." : next.copy}</Text>
+          </View>
           <Ionicons name="chevron-forward" color={COLORS.cyan} size={20} />
         </Pressable>
 
-        {recoveryDays >= 2 ? <View style={styles.recovery}><Ionicons name="shield-checkmark-outline" color={COLORS.lime} size={18} /><Text style={styles.recoveryText}>RECOVERY MODE · No reset. Reduce difficulty and keep the run alive.</Text></View> : null}
+        {recoveryDays >= 2 ? (
+          <View style={styles.recovery}>
+            <Ionicons name="shield-checkmark-outline" color={COLORS.lime} size={18} />
+            <Text style={styles.recoveryText}>RECOVERY MODE · No reset. Reduce difficulty and keep the run alive.</Text>
+          </View>
+        ) : null}
       </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 34, gap: 18 },
+  content: { padding: 20, paddingBottom: 34, gap: 16 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   eyebrow: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   name: { color: COLORS.text, fontSize: 27, fontWeight: "900", letterSpacing: 1, marginTop: 5 },
@@ -163,6 +229,34 @@ const styles = StyleSheet.create({
   dayBadge: { borderWidth: 1, borderColor: COLORS.cyan, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8, alignItems: "center", minWidth: 58, backgroundColor: COLORS.cyanDim },
   dayLabel: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
   dayNumber: { color: COLORS.text, fontSize: 22, fontWeight: "900", lineHeight: 24 },
+  hero: { backgroundColor: COLORS.panel, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.cyan, padding: 16, gap: 12, shadowColor: COLORS.cyan, shadowOpacity: 0.22, shadowRadius: 16, elevation: 8 },
+  heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  heroLabel: { color: COLORS.cyan, fontSize: 10, fontWeight: "900", letterSpacing: 1.3 },
+  heroAuto: { color: COLORS.lime, fontSize: 9, fontWeight: "900", letterSpacing: 0.9 },
+  heroKicker: { color: COLORS.muted, fontSize: 8, fontWeight: "900", letterSpacing: 1.2 },
+  heroFocus: { color: COLORS.text, fontSize: 20, fontWeight: "900", lineHeight: 26, marginTop: 4 },
+  questionBox: { backgroundColor: COLORS.cyanDim, borderRadius: 13, borderLeftWidth: 3, borderLeftColor: COLORS.cyan, padding: 11, gap: 5 },
+  questionText: { color: COLORS.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
+  planItem: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: COLORS.panelSoft, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, padding: 11 },
+  planItemDone: { opacity: 0.55 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: COLORS.cyan, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  checkboxOn: { backgroundColor: COLORS.cyan, borderColor: COLORS.cyan },
+  planTitle: { color: COLORS.text, fontSize: 12, fontWeight: "800" },
+  planTitleDone: { textDecorationLine: "line-through" },
+  planQuestion: { color: COLORS.cyan, fontSize: 10, lineHeight: 15, marginTop: 3, fontStyle: "italic" },
+  planWhy: { color: COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 3 },
+  planMeta: { alignItems: "flex-end", gap: 3 },
+  planTrack: { fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
+  planMinutes: { color: COLORS.muted, fontSize: 9, fontWeight: "800" },
+  reanalyze: { alignSelf: "center", borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, paddingHorizontal: 13, paddingVertical: 8 },
+  reanalyzeText: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  heroLoading: { flexDirection: "row", gap: 10, alignItems: "center", paddingVertical: 8 },
+  heroLoadingText: { flex: 1, color: COLORS.muted, fontSize: 11, lineHeight: 16 },
+  alignCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  alignScore: { fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
+  alignStatus: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   xpCard: { backgroundColor: COLORS.panel, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.line, gap: 11 },
   xpTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   xpValue: { color: COLORS.text, fontSize: 28, fontWeight: "900", marginTop: 3 },
@@ -170,9 +264,7 @@ const styles = StyleSheet.create({
   streak: { flexDirection: "row", gap: 5, alignItems: "center", backgroundColor: COLORS.amberDim, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6 },
   streakText: { color: COLORS.amber, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   xpBottom: { flexDirection: "row", justifyContent: "space-between" },
-  muted: { color: COLORS.muted, fontSize: 11, fontWeight: "700" },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  muted: { color: COLORS.muted, fontSize: 10, fontWeight: "700" },
   signalRow: { flexDirection: "row", gap: 9 },
   signalCard: { flex: 1, backgroundColor: COLORS.panel, borderRadius: 15, padding: 12, gap: 6, borderWidth: 1, borderColor: COLORS.line },
   signalIcon: { fontSize: 16, fontWeight: "900" },
@@ -188,24 +280,6 @@ const styles = StyleSheet.create({
   questTargets: { flexDirection: "row", gap: 18, marginTop: 4 },
   targetText: { color: COLORS.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.7 },
   targetStrong: { color: COLORS.text, fontSize: 11 },
-  alignCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  alignScore: { fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
-  alignStatus: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  briefCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.cyan, borderRadius: 18, padding: 14, gap: 10 },
-  regen: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
-  briefFocus: { color: COLORS.text, fontSize: 13, fontWeight: "800", lineHeight: 18 },
-  planItem: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: COLORS.panelSoft, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, padding: 10 },
-  planItemDone: { opacity: 0.6 },
-  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: COLORS.cyan, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  checkboxOn: { backgroundColor: COLORS.cyan, borderColor: COLORS.cyan },
-  planTitle: { color: COLORS.text, fontSize: 12, fontWeight: "800" },
-  planTitleDone: { textDecorationLine: "line-through" },
-  planWhy: { color: COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  planMeta: { alignItems: "flex-end", gap: 3 },
-  planTrack: { fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
-  planMinutes: { color: COLORS.muted, fontSize: 9, fontWeight: "800" },
-  briefButton: { backgroundColor: COLORS.cyan, borderRadius: 11, alignItems: "center", paddingVertical: 12 },
-  briefButtonText: { color: COLORS.ink, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   nextAction: { flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: COLORS.cyan, padding: 15 },
   nextIcon: { width: 35, height: 35, borderRadius: 12, backgroundColor: COLORS.text, alignItems: "center", justifyContent: "center" },
   nextTitle: { color: COLORS.ink, fontSize: 16, fontWeight: "900", marginTop: 3 },

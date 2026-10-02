@@ -16,7 +16,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: COLORS.cyan,
         tabBarInactiveTintColor: COLORS.muted,
         tabBarButton: HapticTab,
-        tabBarStyle: { height: 58 + bottomPadding, paddingTop: 7, paddingBottom: bottomPadding, backgroundColor: COLORS.ink, borderTopColor: COLORS.line, borderTopWidth: 1 },
+        tabBarStyle: { height: 62 + bottomPadding, paddingTop: 8, paddingBottom: bottomPadding, backgroundColor: COLORS.ink, borderTopColor: "#223354", borderTopWidth: 1, shadowColor: COLORS.cyan, shadowOpacity: 0.12, shadowRadius: 12, elevation: 12 },
         tabBarLabelStyle: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
       }}
     >

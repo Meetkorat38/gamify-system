@@ -3,18 +3,17 @@ import { TRPCError } from "@trpc/server";
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
- * Preference order requested by the owner: DeepSeek v4.1 first, Meta Muse Spark
- * second (Spark 2 is not listed yet, 1.3 is the newest), then free models as
- * automatic fallback if credits or availability fail. Set OPENROUTER_MODEL to pin
- * any other model id.
+ * Owner's explicit choice: DeepSeek v4.1 quality first, paid is acceptable.
+ * DeepSeek variants lead; free models stay only as a last-resort fallback when
+ * credits or availability fail. Set OPENROUTER_MODEL to pin any other model id.
  */
 const MODEL_PREFERENCES = [
   "deepseek/deepseek-v4.1-flash",
+  "deepseek/deepseek-v4-pro",
   "meta/muse-spark-1.3",
   "deepseek/deepseek-v4-flash",
   "google/gemma-4-31b-it:free",
   "qwen/qwen3.8-27b:free",
-  "google/gemma-4-26b-a4b-it:free",
 ];
 
 const CACHE_MS = 30 * 60 * 1000;

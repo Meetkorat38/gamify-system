@@ -3,18 +3,20 @@ import type { PersistedState } from "@/lib/lifegamify-store";
 
 export type PlanTrack = "career" | "english" | "health" | "system";
 
-export type PlanItem = { title: string; why: string; minutes: number; track: PlanTrack };
-export type DailyPlan = { focus: string; items: PlanItem[] };
+export type PlanItem = { title: string; question: string; why: string; minutes: number; track: PlanTrack };
+export type DailyPlan = { focus: string; focusQuestion: string; items: PlanItem[] };
 export type AlignmentStatus = "aligned" | "at-risk" | "off-track";
 export type AlignmentReport = { status: AlignmentStatus; score: number; observations: string[]; correction: string };
 export type DietDay = { day: string; breakfast: string[]; lunch: string[]; dinner: string[]; snacks: string[] };
 export type DietPlan = { summary: string; rules: string[]; days: DietDay[] };
-export type LearningBlock = { skill: string; task: string; minutes: number };
-export type LearningPlan = { summary: string; weekFocus: string[]; blocks: LearningBlock[]; interviewPrep: string[] };
+export type LearningBlock = { skill: string; task: string; status: "next" | "upcoming"; minutes: number };
+export type LearningPlan = { summary: string; covered: string[]; weekFocus: string[]; blocks: LearningBlock[]; interviewPrep: string[] };
 
 export type CoachSnapshot = {
   today: string;
   weekStart: string;
+  hourOfDay: number;
+  weekday: string;
   day: number;
   phase: string;
   xp: number;
@@ -22,6 +24,8 @@ export type CoachSnapshot = {
   streak: number;
   recoveryDays: number;
   questsToday: Record<string, string>;
+  topicsCovered: string[];
+  recentActions: { date: string; title: string; done: boolean }[];
   week: {
     activeDays: number;
     fullClearDays: number;
@@ -41,6 +45,8 @@ export type CoachSnapshot = {
 
 export type AiKind = "daily" | "align" | "diet" | "learning";
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 export function aiKey(kind: AiKind, stamp: string) {
   return `${kind}:${stamp}`;
 }
@@ -52,6 +58,7 @@ export function getAi<T>(state: PersistedState, key: string): T | null {
 
 export function buildCoachSnapshot(state: PersistedState, todayKey: string, day: number, phase: string, recoveryDays: number): CoachSnapshot {
   const weekStart = weekStartKey();
+  const now = new Date();
   const weekLogs = Object.entries(state.logs).filter(([key]) => key >= weekStart);
   const todayLog = state.logs[todayKey] ?? { statuses: {} };
   const english = state.feedbackEntries.filter((entry) => entry.date >= weekStart);
@@ -70,9 +77,30 @@ export function buildCoachSnapshot(state: PersistedState, todayKey: string, day:
     );
   const latestWeight = state.weightEntries[state.weightEntries.length - 1]?.value ?? 56;
 
+  const recentActions = Object.entries(state.aiCache)
+    .filter(([key]) => key.startsWith("daily:"))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-3)
+    .flatMap(([, entry]) => {
+      const plan = entry.data as { items?: { title?: string }[] } | null;
+      return (plan?.items ?? []).map((item, index) => ({
+        date: entry.stamp,
+        title: item.title ?? "",
+        done: Boolean(state.planChecks[`${entry.stamp}:${index}`]),
+      }));
+    })
+    .filter((action) => action.title);
+
+  const topicsCovered = [
+    ...state.learnLogs.slice(0, 25).map((entry) => (entry.takeaway ? `${entry.title} — ${entry.takeaway}` : entry.title)),
+    ...recentActions.filter((action) => action.done).map((action) => action.title),
+  ].slice(0, 30);
+
   return {
     today: todayKey,
     weekStart,
+    hourOfDay: now.getHours(),
+    weekday: WEEKDAYS[now.getDay()],
     day,
     phase,
     xp: state.xp,
@@ -80,6 +108,8 @@ export function buildCoachSnapshot(state: PersistedState, todayKey: string, day:
     streak: state.streak,
     recoveryDays,
     questsToday: { ...todayLog.statuses },
+    topicsCovered,
+    recentActions,
     week: {
       activeDays: weekLogs.filter(([, log]) => Object.values(log.statuses).some((status) => status && status !== "pending")).length,
       fullClearDays: weekLogs.filter(([, log]) => log.bonusAwarded).length,

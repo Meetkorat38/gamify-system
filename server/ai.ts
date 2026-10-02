@@ -6,12 +6,12 @@ import { publicProcedure, router } from "./_core/trpc";
 const snapshotSchema = z.object({}).passthrough();
 
 const COACH_CONTEXT = [
-  "You are the AI coach inside Life Gamify, a personal progression app for Meet Korat.",
-  "Profile: 22 years old, AI automation engineer earning ₹3.6 LPA, targeting ₹6-7 LPA AI engineering roles.",
-  "Campaign: 90 days starting 2026-10-01. Phase 1 (days 1-46) is learning and proof building; phase 2 (days 47-90) is interviews and offers. Interviews should start by mid-November.",
-  "Three daily tracks: Career (AI systems, agents/workflows, cloud, system design), English (20-25 minutes of ChatGPT Voice speaking practice, capped at 25 minutes, scored out of 10 for pronunciation, grammar, vocabulary, clarity), Health (56 kg at 5 ft 9 in, underweight, target 60 kg; vegetarian who eats eggs; tomatoes and bananas welcome; home food only, no outside food).",
-  "Style rules: be direct, specific and forgiving. Partial progress counts. Small actions beat vague motivation. Never shame a missed day.",
-  "Always reply with ONLY valid JSON matching the exact schema given in the request. No markdown, no commentary.",
+  "You are the personal AI agent inside Life Gamify for Meet Korat. You decide what he does each day — he should never have to ask or prompt you.",
+  "Profile: 22, AI automation engineer earning ₹3.6 LPA, targeting ₹6-7 LPA AI engineering roles. 90-day campaign from 2026-10-01; phase 1 (days 1-46) is learning and proof building, phase 2 (days 47-90) is interviews and offers; interviews start mid-November.",
+  "Tracks: Career (LLM systems, RAG, agents and workflows, cloud, AI system design), English (20-25 minutes of ChatGPT Voice speaking, hard cap 25, scored out of 10 for pronunciation, grammar, vocabulary, clarity), Health (56 kg at 5 ft 9 in targeting 60 kg; vegetarian plus eggs; tomatoes and bananas welcome; home food only, no outside food).",
+  "Specificity rules: always name the exact sub-topic (for example 'chunk-size trade-offs in RAG'), never a bare field name like 'learn LLM'. Every action carries one concrete question or executable task with a deliverable. Use topicsCovered and recentActions to advance the curriculum: never repeat finished work, always pick the logical next step from what he already knows.",
+  "Timing rules: respect hourOfDay and weekday — late hours get lighter, recovery-friendly loads; mornings get the deep work.",
+  "Tone: direct, concrete and forgiving. Partial progress counts. Never shame a missed day. Reply with ONLY valid JSON matching the exact schema in the request. No markdown, no commentary.",
 ].join(" ");
 
 function asString(value: unknown, fallback = "") {
@@ -30,10 +30,11 @@ function asStringArray(value: unknown, limit = 6): string[] {
 }
 
 const TRACKS = ["career", "english", "health", "system"] as const;
+type Track = (typeof TRACKS)[number];
 
-function asTrack(value: unknown): "career" | "english" | "health" | "system" {
+function asTrack(value: unknown): Track {
   const key = asString(value, "system");
-  return (TRACKS as readonly string[]).includes(key) ? (key as "career" | "english" | "health" | "system") : "system";
+  return (TRACKS as readonly string[]).includes(key) ? (key as Track) : "system";
 }
 
 function promptWithSnapshot(task: string, schema: string, snapshot: unknown) {
@@ -46,21 +47,24 @@ export const aiRouter = router({
     .mutation(({ input }) =>
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
+        maxTokens: 2000,
         user: promptWithSnapshot(
-          "Create today's customized to-do list. Align every item with the long-term goal (₹6-7 LPA offer), this week's goals, and the current snapshot. Blend the three tracks plus one small system/recovery action if useful. Make items concrete and finishable today.",
-          '{"focus":"one line focus for today","items":[{"title":"short action title","why":"one sentence why this matters now","minutes":30,"track":"career|english|health|system"}]} with 4 to 6 items, total realistic for one day',
+          "Decide TODAY's mission automatically. Pick exactly one focus sub-topic that is the logical next step in his curriculum after topicsCovered, then give one specific question or executable task with a deliverable, and 4 to 6 concrete actions for today. Each action names its exact sub-topic and its own concrete question or task. Respect hourOfDay, weekday, phase and the three tracks; English stays at or under 25 minutes.",
+          '{"focus":"the exact sub-topic advanced today","focusQuestion":"one specific question or executable task with a clear deliverable","items":[{"title":"exact sub-topic action","question":"the concrete question or task for this item","why":"why this next, given what is already covered","minutes":30,"track":"career|english|health|system"}]} with 4 to 6 items',
           input,
         ),
       }).then((raw) => ({
-        focus: asString(raw.focus, "Keep the run alive."),
+        focus: asString(raw.focus, "Advance one exact sub-topic today."),
+        focusQuestion: asString(raw.focusQuestion, "What is the smallest thing you can ship or explain today that proves progress?"),
         items: (Array.isArray(raw.items) ? raw.items : [])
           .slice(0, 6)
           .map((item) => {
             const entry = (item ?? {}) as Record<string, unknown>;
             return {
               title: asString(entry.title, "Small daily action"),
+              question: asString(entry.question, "What exact output will you produce?"),
               why: asString(entry.why, "Moves the campaign forward."),
-              minutes: Math.round(asNumber(entry.minutes, 20, 5, 240)),
+              minutes: Math.round(asNumber(entry.minutes, 30, 5, 240)),
               track: asTrack(entry.track),
             };
           }),
@@ -73,7 +77,7 @@ export const aiRouter = router({
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
         user: promptWithSnapshot(
-          "Judge honestly whether the user is aligned with the goal right now. Compare effort across Career, English and Health against the 90-day campaign and the mid-November interview target. Score alignment 0-100.",
+          "Judge honestly whether he is aligned with the goal right now. Compare real effort across Career, English and Health against the 90-day campaign and the mid-November interview target. Score alignment 0-100.",
           '{"status":"aligned|at-risk|off-track","score":70,"observations":["observation 1","observation 2","observation 3"],"correction":"the single most important correction for the next 48 hours"}',
           input,
         ),
@@ -122,12 +126,13 @@ export const aiRouter = router({
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
         user: promptWithSnapshot(
-          "Create a personalized weekly learning plan that closes the biggest interview skill gaps first and produces portfolio proof for AI automation roles. Respect the skill states in the snapshot. Include one interview-prep practice list.",
-          '{"summary":"one line strategy","weekFocus":["focus 1","focus 2","focus 3"],"blocks":[{"skill":"skill name","task":"concrete task with an output","minutes":45}],"interviewPrep":["practice item"]}',
+          "Create this week's learning curriculum for AI automation interviews. List the most recently covered topics, then sequence exact sub-topics as next/upcoming so he always knows what to learn after what. Every block names one exercise with an output. Include interview practice items.",
+          '{"summary":"one line strategy","covered":["recently covered sub-topic"],"weekFocus":["focus 1","focus 2","focus 3"],"blocks":[{"skill":"track or skill","task":"exact sub-topic plus one exercise with an output","status":"next|upcoming","minutes":45}],"interviewPrep":["practice item"]}',
           input,
         ),
       }).then((raw) => ({
         summary: asString(raw.summary, "Close one gap deeply and turn it into proof."),
+        covered: asStringArray(raw.covered, 5),
         weekFocus: asStringArray(raw.weekFocus, 3),
         blocks: (Array.isArray(raw.blocks) ? raw.blocks : [])
           .slice(0, 6)
@@ -136,6 +141,7 @@ export const aiRouter = router({
             return {
               skill: asString(block.skill, "Learning block"),
               task: asString(block.task, "Focused practice with a written output."),
+              status: asString(block.status, "next") === "upcoming" ? "upcoming" : "next",
               minutes: Math.round(asNumber(block.minutes, 45, 15, 240)),
             };
           }),
