@@ -98,7 +98,7 @@ export default function LearnScreen() {
   };
 
   return (
-    <ScreenContainer safeAreaClassName="bg-[#070B16]" containerClassName="bg-[#070B16]">
+    <ScreenContainer safeAreaClassName="bg-[#F6F6F3]" containerClassName="bg-[#F6F6F3]">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View>
           <Text style={styles.eyebrow}>{"// LEARNING RUN"}</Text>

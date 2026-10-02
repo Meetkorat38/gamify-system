@@ -12,7 +12,7 @@ export default function QuestsScreen() {
   const todayXp = logXp(todayLog);
 
   return (
-    <ScreenContainer safeAreaClassName="bg-[#070B16]" containerClassName="bg-[#070B16]">
+    <ScreenContainer safeAreaClassName="bg-[#F6F6F3]" containerClassName="bg-[#F6F6F3]">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}><View><Text style={styles.eyebrow}>{"// DAILY MISSIONS"}</Text><Text style={styles.title}>Keep the run alive.</Text><Text style={styles.subtitle}>Three quests. No overthinking. Record the strongest version you can do today.</Text></View><View style={styles.xpBadge}><Text style={styles.xpNumber}>{todayXp}</Text><Text style={styles.xpLabel}>TODAY XP</Text></View></View>
 

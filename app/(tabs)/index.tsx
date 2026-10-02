@@ -73,7 +73,7 @@ export default function CommandScreen() {
   const next = actions.find((item): item is Action => item !== null) ?? fallback;
 
   return (
-    <ScreenContainer safeAreaClassName="bg-[#070B16]" containerClassName="bg-[#070B16]">
+    <ScreenContainer safeAreaClassName="bg-[#F6F6F3]" containerClassName="bg-[#F6F6F3]">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View>
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   dayBadge: { borderWidth: 1, borderColor: COLORS.cyan, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8, alignItems: "center", minWidth: 58, backgroundColor: COLORS.cyanDim },
   dayLabel: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
   dayNumber: { color: COLORS.text, fontSize: 22, fontWeight: "900", lineHeight: 24 },
-  hero: { backgroundColor: COLORS.panel, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.cyan, padding: 16, gap: 12, boxShadow: "0px 0px 16px rgba(67, 231, 255, 0.22)", elevation: 8 },
+  hero: { backgroundColor: COLORS.panel, borderRadius: 22, borderWidth: 1, borderColor: COLORS.line, padding: 18, gap: 12, boxShadow: "0px 10px 30px rgba(25, 26, 31, 0.07)", elevation: 3 },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   heroLabel: { color: COLORS.cyan, fontSize: 10, fontWeight: "900", letterSpacing: 1.3 },
   heroAuto: { color: COLORS.lime, fontSize: 9, fontWeight: "900", letterSpacing: 0.9 },
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   nextAction: { flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 18, backgroundColor: COLORS.cyan, padding: 15 },
   nextIcon: { width: 35, height: 35, borderRadius: 12, backgroundColor: COLORS.text, alignItems: "center", justifyContent: "center" },
   nextTitle: { color: COLORS.ink, fontSize: 16, fontWeight: "900", marginTop: 3 },
-  nextCopy: { color: "#17464D", fontSize: 11, lineHeight: 15, marginTop: 2 },
+  nextCopy: { color: "#E9EEFF", fontSize: 11, lineHeight: 15, marginTop: 2 },
   recovery: { flexDirection: "row", gap: 8, alignItems: "center", borderRadius: 13, borderWidth: 1, borderColor: COLORS.lime, backgroundColor: COLORS.limeDim, padding: 12 },
   recoveryText: { flex: 1, color: COLORS.lime, fontSize: 11, lineHeight: 15, fontWeight: "700" },
   pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
