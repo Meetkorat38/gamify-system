@@ -35,8 +35,8 @@ export default function CommandScreen() {
   useEffect(() => {
     if (loading || started.current) return;
     started.current = true;
-    if (!dailyPlan) generateDailyPlan().catch(() => undefined);
-    if (!alignment) generateAlignment().catch(() => undefined);
+    if (!dailyPlan || dailyPlan.source === "fallback") generateDailyPlan().catch(() => undefined);
+    if (!alignment || alignment.source === "fallback") generateAlignment().catch(() => undefined);
   }, [loading, dailyPlan, alignment, generateDailyPlan, generateAlignment]);
 
   const hour = new Date().getHours();
