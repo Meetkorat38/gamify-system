@@ -39,3 +39,15 @@ Life Gamify is a mobile-first personal progression system for Meet's 90-day camp
 - `lib/lifegamify-store.tsx`: data model, XP rules, recovery rules, AsyncStorage persistence.
 - `components/quest-card.tsx`, `components/progress-bar.tsx`: reusable UI units.
 - `constants/gamify.ts`: palette, track metadata, rank and phase helpers.
+
+## AI coach layer (OpenRouter)
+
+- **Transport:** tRPC `ai` router (`server/ai.ts`) on the app API server; OpenRouter client in `server/_core/openrouter.ts`; client hook `lib/use-coach.ts` with typed plan shapes in `lib/coach.ts`.
+- **Credentials:** `OPENROUTER_API_KEY` stored as a platform secret (never committed, never bundled to the client); optional `OPENROUTER_MODEL` env override. Optional public vars documented in `.env.example`.
+- **Model preference (catalog checked 2026-10-02):** `deepseek/deepseek-v4.1-flash` → `meta/muse-spark-1.3` (Muse Spark 2 is not listed on OpenRouter yet) → `deepseek/deepseek-v4-flash` → free fallbacks `google/gemma-4-31b-it:free`, `qwen/qwen3.8-27b:free`, `google/gemma-4-26b-a4b-it:free`. Automatic per-request fallback; 30-minute response cache.
+- **Features:**
+  - Daily customized to-do list aligned with the long-term (₹6–7 LPA) and weekly goals, with checkable items; regenerated automatically each new day when the app opens (application-native daily automation).
+  - Goal-alignment check: aligned / at-risk / off-track, 0–100 score, three observations, one 48-hour correction.
+  - Weekly personalized diet plan: vegetarian + eggs, home food only, weight-gain toward the editable goal.
+  - Weekly personalized learning plan driven by the skill-gap checklist, with interview-prep items.
+- **State snapshots:** compact snapshot builder (`buildCoachSnapshot`) sends only aggregates (week activity, skill states, weight trend, recent English scores) to the model.

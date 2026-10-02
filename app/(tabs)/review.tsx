@@ -1,41 +1,130 @@
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ProgressBar } from "@/components/progress-bar";
 import { ScreenContainer } from "@/components/screen-container";
-import { COLORS } from "@/constants/gamify";
-import { QUESTS, useLifeGamify } from "@/lib/lifegamify-store";
+import { COLORS, REWARDS, weekStartKey } from "@/constants/gamify";
+import { QUESTS, useLifeGamify, weekXp } from "@/lib/lifegamify-store";
+import { useCoach } from "@/lib/use-coach";
 
-const REWARDS = [
-  { id: "video", title: "Watch a useful short video", detail: "Coding, finance, or a topic that moves the build forward.", cost: 120, icon: "▶" },
-  { id: "outing", title: "Take a small outing", detail: "A reset that gets you out of the room and back into life.", cost: 220, icon: "↗" },
-  { id: "purchase", title: "Buy one useful thing", detail: "A bounded reward with a spending limit you choose.", cost: 300, icon: "＋" },
-];
+const ALIGN_COLOR: Record<string, string> = { aligned: COLORS.lime, "at-risk": COLORS.amber, "off-track": COLORS.red };
 
 export default function ReviewScreen() {
   const { state, todayLog, saveCheckIn, claimReward, resetDemo } = useLifeGamify();
+  const { alignment, generateAlignment, busyAlign } = useCoach();
   const [energy, setEnergy] = useState(todayLog.energy ?? 2);
   const [tomorrow, setTomorrow] = useState(todayLog.tomorrow ?? "");
   const [saved, setSaved] = useState(false);
-  const weeklyLogs = useMemo(() => Object.entries(state.logs).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7), [state.logs]);
-  const weeklyXp = weeklyLogs.reduce((sum, [, log]) => sum + Object.values(log.statuses).reduce((total, status) => total + (status === "full" ? 20 : status === "partial" ? 10 : status === "minimum" ? 5 : 0), 0) + (log.bonusAwarded ? 15 : 0) + (log.checkInAwarded ? 5 : 0), 0);
-  const weeklyClears = weeklyLogs.reduce((sum, [, log]) => sum + QUESTS.filter((quest) => log.statuses[quest.id] && log.statuses[quest.id] !== "pending" && log.statuses[quest.id] !== "skipped").length, 0);
+  const weekStart = weekStartKey();
+  const weeklyXp = weekXp(state, weekStart);
+  const weeklyClears = Object.entries(state.logs)
+    .filter(([key]) => key >= weekStart)
+    .reduce((sum, [, log]) => sum + QUESTS.filter((quest) => log.statuses[quest.id] && log.statuses[quest.id] !== "pending" && log.statuses[quest.id] !== "skipped").length, 0);
+  const voiceReviews = state.feedbackEntries.filter((entry) => entry.date >= weekStart).length;
+  const weighIns = state.weightEntries.filter((entry) => entry.date >= weekStart).length;
+  const nextThreshold = REWARDS.find((reward) => weeklyXp < reward.threshold);
 
-  const save = () => { saveCheckIn(energy, tomorrow.trim()); setSaved(true); setTimeout(() => setSaved(false), 1800); };
+  const save = () => {
+    saveCheckIn(energy, tomorrow.trim());
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
 
   return (
     <ScreenContainer safeAreaClassName="bg-[#070B16]" containerClassName="bg-[#070B16]">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View><Text style={styles.eyebrow}>{"// NIGHTLY REVIEW"}</Text><Text style={styles.title}>Close the loop.</Text><Text style={styles.subtitle}>A five-minute save point. Honest evidence beats a perfect story.</Text></View>
+        <View>
+          <Text style={styles.eyebrow}>{"// NIGHTLY REVIEW"}</Text>
+          <Text style={styles.title}>Close the loop.</Text>
+          <Text style={styles.subtitle}>A five-minute save point. Honest evidence beats a perfect story.</Text>
+        </View>
 
-        <View style={styles.checkinCard}><View style={styles.cardHeader}><Text style={styles.sectionLabel}>TODAY&apos;S SAVE POINT</Text><Text style={styles.saveState}>{saved ? "SAVED ✓" : "LOCAL"}</Text></View><Text style={styles.question}>How much energy did you have?</Text><View style={styles.energyRow}>{[1, 2, 3].map((value) => <Pressable key={value} onPress={() => setEnergy(value)} style={[styles.energy, energy === value && styles.energySelected]}><Text style={[styles.energyNumber, energy === value && { color: COLORS.ink }]}>{value}</Text><Text style={[styles.energyLabel, energy === value && { color: COLORS.ink }]}>{value === 1 ? "LOW" : value === 2 ? "MID" : "HIGH"}</Text></Pressable>)}</View><Text style={styles.question}>What is tomorrow&apos;s first action?</Text><TextInput value={tomorrow} onChangeText={setTomorrow} placeholder="Example: revise one RAG interview answer" placeholderTextColor={COLORS.muted} style={styles.input} /><Pressable onPress={save} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryText}>SAVE CHECK-IN</Text></Pressable></View>
+        <View style={styles.alignCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>{"// AI ALIGNMENT CHECK"}</Text>
+            <Pressable onPress={() => generateAlignment().catch(() => undefined)} disabled={busyAlign}>
+              <Text style={styles.regen}>{busyAlign ? "…" : alignment ? "RE-RUN" : "RUN CHECK"}</Text>
+            </Pressable>
+          </View>
+          {busyAlign && !alignment ? <ActivityIndicator color={COLORS.cyan} /> : null}
+          {alignment ? (
+            <View style={{ gap: 9 }}>
+              <View style={styles.alignRow}>
+                <Text style={[styles.alignStatus, { color: ALIGN_COLOR[alignment.status] ?? COLORS.amber }]}>{alignment.status.toUpperCase()}</Text>
+                <Text style={[styles.alignScore, { color: ALIGN_COLOR[alignment.status] ?? COLORS.amber }]}>{alignment.score}/100</Text>
+              </View>
+              {alignment.observations.map((observation) => (
+                <Text key={observation} style={styles.observation}>{"→ "}{observation}</Text>
+              ))}
+              <View style={styles.correctionBox}>
+                <Text style={styles.correctionLabel}>NEXT 48 HOURS</Text>
+                <Text style={styles.correctionText}>{alignment.correction}</Text>
+              </View>
+            </View>
+          ) : !busyAlign ? (
+            <Text style={styles.hint}>Honest read: are you aligned with the ₹6–7 LPA goal, English practice, and health right now?</Text>
+          ) : null}
+        </View>
 
-        <View style={styles.weekCard}><View style={styles.cardHeader}><Text style={styles.sectionLabel}>WEEKLY SIGNAL</Text><Text style={styles.weekXp}>{weeklyXp} XP</Text></View><View style={styles.weekStats}><View><Text style={styles.statValue}>{weeklyClears}</Text><Text style={styles.statLabel}>QUESTS LOGGED</Text></View><View><Text style={styles.statValue}>{state.feedbackEntries.length}</Text><Text style={styles.statLabel}>VOICE REVIEWS</Text></View><View><Text style={styles.statValue}>{state.weightEntries.length}</Text><Text style={styles.statLabel}>WEIGH-INS</Text></View></View><ProgressBar value={Math.min(100, (weeklyXp / 300) * 100)} color={COLORS.amber} height={8} /><Text style={styles.weekCopy}>{weeklyXp >= 220 ? "Reward threshold reached. Claim a deliberate reset." : `${Math.max(0, 220 - weeklyXp)} XP until the next reward threshold.`}</Text></View>
+        <View style={styles.checkinCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>TODAY&apos;S SAVE POINT</Text>
+            <Text style={styles.saveState}>{saved ? "SAVED ✓" : "LOCAL"}</Text>
+          </View>
+          <Text style={styles.question}>How much energy did you have?</Text>
+          <View style={styles.energyRow}>
+            {[1, 2, 3].map((value) => (
+              <Pressable key={value} onPress={() => setEnergy(value)} style={[styles.energy, energy === value && styles.energySelected]}>
+                <Text style={[styles.energyNumber, energy === value && { color: COLORS.ink }]}>{value}</Text>
+                <Text style={[styles.energyLabel, energy === value && { color: COLORS.ink }]}>{value === 1 ? "LOW" : value === 2 ? "MID" : "HIGH"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.question}>What is tomorrow&apos;s first action?</Text>
+          <TextInput value={tomorrow} onChangeText={setTomorrow} placeholder="Example: revise one RAG interview answer" placeholderTextColor={COLORS.muted} style={styles.input} />
+          <Pressable onPress={save} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+            <Text style={styles.primaryText}>{todayLog.checkInAwarded ? "UPDATE CHECK-IN" : "SAVE CHECK-IN · +5 XP"}</Text>
+          </Pressable>
+        </View>
 
-        <View style={styles.cardHeader}><Text style={styles.sectionLabel}>REWARD LOCKER</Text><Text style={styles.muted}>NO IMPULSE SPENDING</Text></View>
-        {REWARDS.map((reward) => { const claimed = state.claimedRewards.includes(reward.id); const available = weeklyXp >= reward.cost; return <Pressable key={reward.id} onPress={() => available && claimReward(reward.id)} style={[styles.reward, claimed && styles.rewardClaimed, !available && styles.rewardLocked]}><View style={styles.rewardIcon}><Text style={styles.rewardGlyph}>{reward.icon}</Text></View><View style={{ flex: 1 }}><Text style={styles.rewardTitle}>{reward.title}</Text><Text style={styles.rewardDetail}>{reward.detail}</Text></View><View style={styles.rewardRight}><Text style={[styles.rewardCost, available && { color: COLORS.lime }]}>{claimed ? "CLAIMED" : `${reward.cost} XP`}</Text><Text style={styles.rewardChevron}>{available ? "›" : "LOCK"}</Text></View></Pressable>; })}
+        <View style={styles.weekCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>WEEKLY SIGNAL</Text>
+            <Text style={styles.weekXp}>{weeklyXp} XP</Text>
+          </View>
+          <View style={styles.weekStats}>
+            <View><Text style={styles.statValue}>{weeklyClears}</Text><Text style={styles.statLabel}>QUESTS LOGGED</Text></View>
+            <View><Text style={styles.statValue}>{voiceReviews}</Text><Text style={styles.statLabel}>VOICE REVIEWS</Text></View>
+            <View><Text style={styles.statValue}>{weighIns}</Text><Text style={styles.statLabel}>WEIGH-INS</Text></View>
+          </View>
+          <ProgressBar value={(weeklyXp / 300) * 100} color={COLORS.amber} height={8} />
+          <Text style={styles.weekCopy}>{nextThreshold ? `${Math.max(0, nextThreshold.threshold - weeklyXp)} XP until “${nextThreshold.title}”.` : "Top reward unlocked. Claim one deliberate reset."}</Text>
+        </View>
 
-        <Text style={styles.note}>Rewards are a weekly contract with yourself: useful, bounded, and never a punishment for a hard day.</Text>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>REWARD LOCKER</Text>
+          <Text style={styles.muted}>NO IMPULSE SPENDING</Text>
+        </View>
+        {REWARDS.map((reward) => {
+          const claimKey = `${weekStart}:${reward.id}`;
+          const claimed = state.claimedRewards.includes(claimKey);
+          const available = weeklyXp >= reward.threshold && !claimed;
+          return (
+            <Pressable key={reward.id} onPress={() => available && claimReward(reward.id)} style={[styles.reward, claimed && styles.rewardClaimed, !available && !claimed && styles.rewardLocked]}>
+              <View style={styles.rewardIcon}><Text style={styles.rewardGlyph}>{reward.icon}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rewardTitle}>{reward.title}</Text>
+                <Text style={styles.rewardDetail}>{reward.detail}</Text>
+              </View>
+              <View style={styles.rewardRight}>
+                <Text style={[styles.rewardCost, available && { color: COLORS.lime }]}>{claimed ? "CLAIMED ✓" : `${reward.threshold} XP`}</Text>
+                <Text style={styles.rewardChevron}>{claimed ? "USED" : available ? "CLAIM" : "LOCK"}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+
+        <Text style={styles.note}>Rewards reset every week and are a contract with yourself: useful, bounded, and never a punishment for a hard day.</Text>
         <Pressable onPress={resetDemo} style={({ pressed }) => [styles.resetButton, pressed && styles.pressed]}><Text style={styles.resetText}>RESET LOCAL TEST DATA</Text></Pressable>
       </ScrollView>
     </ScreenContainer>
@@ -47,9 +136,19 @@ const styles = StyleSheet.create({
   eyebrow: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   title: { color: COLORS.text, fontSize: 27, fontWeight: "900", marginTop: 5 },
   subtitle: { color: COLORS.muted, fontSize: 12, lineHeight: 17, marginTop: 5 },
-  checkinCard: { backgroundColor: COLORS.panel, borderRadius: 18, borderWidth: 1, borderColor: COLORS.cyan, padding: 15, gap: 12 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.3 },
+  alignCard: { backgroundColor: COLORS.panel, borderRadius: 18, borderWidth: 1, borderColor: COLORS.line, padding: 15, gap: 10 },
+  regen: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  alignRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  alignStatus: { fontSize: 15, fontWeight: "900", letterSpacing: 1 },
+  alignScore: { fontSize: 24, fontWeight: "900" },
+  observation: { color: COLORS.text, fontSize: 11, lineHeight: 17 },
+  correctionBox: { backgroundColor: COLORS.panelSoft, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cyan, padding: 11, gap: 4 },
+  correctionLabel: { color: COLORS.cyan, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  correctionText: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  hint: { color: COLORS.muted, fontSize: 11, lineHeight: 16 },
+  checkinCard: { backgroundColor: COLORS.panel, borderRadius: 18, borderWidth: 1, borderColor: COLORS.cyan, padding: 15, gap: 12 },
   saveState: { color: COLORS.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   question: { color: COLORS.text, fontSize: 14, fontWeight: "800", marginTop: 1 },
   energyRow: { flexDirection: "row", gap: 8 },
@@ -76,7 +175,7 @@ const styles = StyleSheet.create({
   rewardDetail: { color: COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
   rewardRight: { alignItems: "flex-end", gap: 4 },
   rewardCost: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
-  rewardChevron: { color: COLORS.muted, fontSize: 16, fontWeight: "800" },
+  rewardChevron: { color: COLORS.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.7 },
   note: { color: COLORS.muted, fontSize: 10, lineHeight: 15, textAlign: "center", paddingHorizontal: 8 },
   resetButton: { alignSelf: "center", borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginTop: 1 },
   resetText: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },

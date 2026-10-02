@@ -2,12 +2,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import {
+  BONUS_XP,
   campaignDay,
   campaignPhase,
   dateKey,
   levelForXp,
   phaseDescription,
+  REWARDS,
+  weekStartKey,
   yesterdayKey,
+  type LearnCategory,
+  type SkillState,
   type TrackKey,
 } from "@/constants/gamify";
 
@@ -25,15 +30,24 @@ export type QuestDefinition = {
   icon: string;
 };
 
+export type DailyBonusFlags = {
+  english?: boolean;
+  learn?: boolean;
+  network?: boolean;
+  meals?: boolean;
+};
+
 export type DailyLog = {
   statuses: Record<string, QuestStatus>;
   energy?: number;
   tomorrow?: string;
   bonusAwarded?: boolean;
   checkInAwarded?: boolean;
+  bonuses?: DailyBonusFlags;
 };
 
 export type WeightEntry = { date: string; value: number };
+
 export type EnglishFeedback = {
   date: string;
   topic: string;
@@ -42,7 +56,25 @@ export type EnglishFeedback = {
   vocabulary: number;
   clarity: number;
   note: string;
+  minutes?: number;
 };
+
+export type LearnLog = {
+  date: string;
+  category: LearnCategory;
+  title: string;
+  takeaway: string;
+  minutes: number;
+};
+
+export type NetworkLog = {
+  connections: number;
+  messages: number;
+  applications: number;
+  referrals: number;
+};
+
+export type MealLog = { items: string[]; outsideFood: boolean };
 
 export type PersistedState = {
   xp: number;
@@ -52,6 +84,13 @@ export type PersistedState = {
   weightEntries: WeightEntry[];
   feedbackEntries: EnglishFeedback[];
   claimedRewards: string[];
+  learnLogs: LearnLog[];
+  networkLogs: Record<string, NetworkLog>;
+  mealLogs: Record<string, MealLog>;
+  skills: Record<string, SkillState>;
+  aiCache: Record<string, { stamp: string; data: unknown }>;
+  planChecks: Record<string, boolean>;
+  weightGoal: number;
 };
 
 export const QUESTS: QuestDefinition[] = [
@@ -91,7 +130,7 @@ export const QUESTS: QuestDefinition[] = [
 ];
 
 const STORAGE_KEY = "life-gamify-mvp-v1";
-const DAILY_BONUS = 15;
+
 function pointsForStatus(questId: string, status: QuestStatus) {
   const quest = QUESTS.find((item) => item.id === questId);
   if (!quest || status === "pending" || status === "skipped") return 0;
@@ -108,6 +147,13 @@ const blankState = (): PersistedState => ({
   weightEntries: [],
   feedbackEntries: [],
   claimedRewards: [],
+  learnLogs: [],
+  networkLogs: {},
+  mealLogs: {},
+  skills: {},
+  aiCache: {},
+  planChecks: {},
+  weightGoal: 60,
 });
 
 function blankLog(): DailyLog {
@@ -139,6 +185,39 @@ function isAtRisk(state: PersistedState, key: string) {
   return missed;
 }
 
+export function logXp(log: DailyLog) {
+  const questXp = QUESTS.reduce((sum, quest) => sum + pointsForStatus(quest.id, log.statuses[quest.id] ?? "pending"), 0);
+  const bonuses = log.bonuses ?? {};
+  return (
+    questXp +
+    (log.bonusAwarded ? BONUS_XP.dailyClear : 0) +
+    (log.checkInAwarded ? BONUS_XP.checkIn : 0) +
+    (bonuses.english ? BONUS_XP.english : 0) +
+    (bonuses.learn ? BONUS_XP.learn : 0) +
+    (bonuses.network ? BONUS_XP.network : 0) +
+    (bonuses.meals ? BONUS_XP.meals : 0)
+  );
+}
+
+export function weekXp(state: PersistedState, weekStart = weekStartKey()) {
+  return Object.entries(state.logs).reduce((sum, [key, log]) => (key >= weekStart ? sum + logXp(log) : sum), 0);
+}
+
+export function homeFoodStreak(state: PersistedState) {
+  let streak = 0;
+  const cursor = new Date();
+  const isHomeDay = (key: string) => {
+    const meal = state.mealLogs?.[key];
+    return Boolean(meal && !meal.outsideFood && Array.isArray(meal.items) && meal.items.length > 0);
+  };
+  if (!isHomeDay(dateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+  while (isHomeDay(dateKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 type StoreValue = {
   state: PersistedState;
   todayKey: string;
@@ -149,10 +228,18 @@ type StoreValue = {
   level: number;
   loading: boolean;
   recoveryDays: number;
+  homeStreak: number;
   completeQuest: (questId: string, status: Exclude<QuestStatus, "pending">) => void;
   saveCheckIn: (energy: number, tomorrow: string) => void;
   addWeight: (value: number) => void;
+  setWeightGoal: (goal: number) => void;
   saveFeedback: (feedback: Omit<EnglishFeedback, "date">) => void;
+  logLearn: (entry: Omit<LearnLog, "date">) => void;
+  saveNetwork: (counts: NetworkLog) => void;
+  saveMeals: (meal: MealLog) => void;
+  setSkill: (skillId: string, next: SkillState) => void;
+  saveAi: (key: string, data: unknown) => void;
+  togglePlanItem: (key: string) => void;
   claimReward: (rewardId: string) => void;
   resetDemo: () => void;
 };
@@ -188,6 +275,22 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
     const todayLog = state.logs[todayKey] ?? blankLog();
     const dayNumber = campaignDay();
 
+    const withDailyBonus = (flag: keyof DailyBonusFlags, xp: number) => {
+      setState((current) => {
+        const previous = current.logs[todayKey] ?? blankLog();
+        const bonuses = previous.bonuses ?? {};
+        if (bonuses[flag]) return current;
+        return {
+          ...current,
+          xp: current.xp + xp,
+          logs: {
+            ...current.logs,
+            [todayKey]: { ...previous, bonuses: { ...bonuses, [flag]: true } },
+          },
+        };
+      });
+    };
+
     return {
       state,
       todayKey,
@@ -198,6 +301,7 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
       level: levelForXp(state.xp),
       loading,
       recoveryDays: isAtRisk(state, todayKey),
+      homeStreak: homeFoodStreak(state),
       completeQuest: (questId, status) => {
         setState((current) => {
           const previous = current.logs[todayKey] ?? blankLog();
@@ -210,10 +314,10 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
           let bonusAwarded = previous.bonusAwarded ?? false;
 
           if (nowComplete && !wasComplete) {
-            nextXp += DAILY_BONUS;
+            nextXp += BONUS_XP.dailyClear;
             bonusAwarded = true;
           } else if (!nowComplete && wasComplete && bonusAwarded) {
-            nextXp = Math.max(0, nextXp - DAILY_BONUS);
+            nextXp = Math.max(0, nextXp - BONUS_XP.dailyClear);
             bonusAwarded = false;
           }
 
@@ -242,7 +346,7 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
           const checkInAwarded = previous.checkInAwarded ?? false;
           return {
             ...current,
-            xp: current.xp + (checkInAwarded ? 0 : 5),
+            xp: current.xp + (checkInAwarded ? 0 : BONUS_XP.checkIn),
             logs: { ...current.logs, [todayKey]: { ...previous, energy, tomorrow, checkInAwarded: true } },
           };
         });
@@ -256,19 +360,90 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
           ].sort((a, b) => a.date.localeCompare(b.date)),
         }));
       },
+      setWeightGoal: (goal) => {
+        setState((current) => ({ ...current, weightGoal: Math.min(150, Math.max(40, Math.round(goal))) }));
+      },
       saveFeedback: (feedback) => {
-        setState((current) => ({
-          ...current,
-          feedbackEntries: [{ ...feedback, date: todayKey }, ...current.feedbackEntries].slice(0, 30),
-        }));
+        setState((current) => {
+          const previous = current.logs[todayKey] ?? blankLog();
+          const bonuses = previous.bonuses ?? {};
+          const earned = !bonuses.english;
+          return {
+            ...current,
+            xp: current.xp + (earned ? BONUS_XP.english : 0),
+            logs: {
+              ...current.logs,
+              [todayKey]: { ...previous, bonuses: { ...bonuses, english: true } },
+            },
+            feedbackEntries: [{ ...feedback, date: todayKey }, ...current.feedbackEntries].slice(0, 40),
+          };
+        });
+      },
+      logLearn: (entry) => {
+        setState((current) => {
+          const previous = current.logs[todayKey] ?? blankLog();
+          const bonuses = previous.bonuses ?? {};
+          const earned = !bonuses.learn;
+          return {
+            ...current,
+            xp: current.xp + (earned ? BONUS_XP.learn : 0),
+            logs: {
+              ...current.logs,
+              [todayKey]: { ...previous, bonuses: { ...bonuses, learn: true } },
+            },
+            learnLogs: [{ ...entry, date: todayKey }, ...current.learnLogs].slice(0, 60),
+          };
+        });
+      },
+      saveNetwork: (counts) => {
+        setState((current) => {
+          const previous = current.logs[todayKey] ?? blankLog();
+          const bonuses = previous.bonuses ?? {};
+          const earned = !bonuses.network;
+          return {
+            ...current,
+            xp: current.xp + (earned ? BONUS_XP.network : 0),
+            logs: {
+              ...current.logs,
+              [todayKey]: { ...previous, bonuses: { ...bonuses, network: true } },
+            },
+            networkLogs: { ...current.networkLogs, [todayKey]: counts },
+          };
+        });
+      },
+      saveMeals: (meal) => {
+        const qualifies = meal.items.length >= 2 && !meal.outsideFood;
+        setState((current) => {
+          const previous = current.logs[todayKey] ?? blankLog();
+          const bonuses = previous.bonuses ?? {};
+          const earned = qualifies && !bonuses.meals;
+          return {
+            ...current,
+            xp: current.xp + (earned ? BONUS_XP.meals : 0),
+            logs: {
+              ...current.logs,
+              [todayKey]: { ...previous, bonuses: { ...bonuses, ...(earned || bonuses.meals ? { meals: true } : {}) } },
+            },
+            mealLogs: { ...current.mealLogs, [todayKey]: meal },
+          };
+        });
+      },
+      setSkill: (skillId, next) => {
+        setState((current) => ({ ...current, skills: { ...current.skills, [skillId]: next } }));
+      },
+      saveAi: (key, data) => {
+        setState((current) => ({ ...current, aiCache: { ...current.aiCache, [key]: { stamp: todayKey, data } } }));
+      },
+      togglePlanItem: (key) => {
+        setState((current) => ({ ...current, planChecks: { ...current.planChecks, [key]: !current.planChecks[key] } }));
       },
       claimReward: (rewardId) => {
-        setState((current) => ({
-          ...current,
-          claimedRewards: current.claimedRewards.includes(rewardId)
-            ? current.claimedRewards.filter((id) => id !== rewardId)
-            : [...current.claimedRewards, rewardId],
-        }));
+        setState((current) => {
+          const claimKey = `${weekStartKey()}:${rewardId}`;
+          const threshold = REWARDS.find((reward) => reward.id === rewardId)?.threshold ?? 0;
+          if (current.claimedRewards.includes(claimKey) || weekXp(current) < threshold) return current;
+          return { ...current, claimedRewards: [...current.claimedRewards, claimKey] };
+        });
       },
       resetDemo: () => setState(blankState()),
     };
@@ -289,13 +464,6 @@ export function statusLabel(status: QuestStatus) {
   if (status === "minimum") return "MINIMUM";
   if (status === "skipped") return "SKIPPED";
   return "OPEN";
-}
-
-export function statusPointsFor(status: QuestStatus) {
-  if (status === "full") return 20;
-  if (status === "partial") return 10;
-  if (status === "minimum") return 5;
-  return 0;
 }
 
 export function questPointsFor(questId: string, status: QuestStatus) {

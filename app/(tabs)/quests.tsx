@@ -4,14 +4,12 @@ import { QuestCard } from "@/components/quest-card";
 import { ProgressBar } from "@/components/progress-bar";
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, TRACKS } from "@/constants/gamify";
-import { QUESTS, questPointsFor, useLifeGamify } from "@/lib/lifegamify-store";
+import { QUESTS, logXp, useLifeGamify } from "@/lib/lifegamify-store";
 
 export default function QuestsScreen() {
   const { state, todayLog, completeQuest, recoveryDays } = useLifeGamify();
   const logged = QUESTS.filter((quest) => todayLog.statuses[quest.id] && todayLog.statuses[quest.id] !== "pending").length;
-  const todayXp = QUESTS.reduce((sum, quest) => sum + questPointsFor(quest.id, todayLog.statuses[quest.id] ?? "pending"), 0)
-    + (todayLog.bonusAwarded ? 15 : 0)
-    + (todayLog.checkInAwarded ? 5 : 0);
+  const todayXp = logXp(todayLog);
 
   return (
     <ScreenContainer safeAreaClassName="bg-[#070B16]" containerClassName="bg-[#070B16]">

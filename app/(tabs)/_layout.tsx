@@ -22,6 +22,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Command", tabBarIcon: ({ color, size }) => <Ionicons name="radio-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="quests" options={{ title: "Quests", tabBarIcon: ({ color, size }) => <Ionicons name="flash-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="learn" options={{ title: "Learn", tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="tracks" options={{ title: "Tracks", tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="review" options={{ title: "Review", tabBarIcon: ({ color, size }) => <Ionicons name="moon-outline" size={size} color={color} /> }} />
     </Tabs>
