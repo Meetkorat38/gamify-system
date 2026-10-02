@@ -30,6 +30,7 @@ export type DailyLog = {
   energy?: number;
   tomorrow?: string;
   bonusAwarded?: boolean;
+  checkInAwarded?: boolean;
 };
 
 export type WeightEntry = { date: string; value: number };
@@ -91,13 +92,13 @@ export const QUESTS: QuestDefinition[] = [
 
 const STORAGE_KEY = "life-gamify-mvp-v1";
 const DAILY_BONUS = 15;
-const statusPoints: Record<QuestStatus, number> = {
-  pending: 0,
-  full: 20,
-  partial: 10,
-  minimum: 5,
-  skipped: 0,
-};
+function pointsForStatus(questId: string, status: QuestStatus) {
+  const quest = QUESTS.find((item) => item.id === questId);
+  if (!quest || status === "pending" || status === "skipped") return 0;
+  if (status === "full") return quest.points;
+  if (status === "partial") return Math.round(quest.points / 2);
+  return 5;
+}
 
 const blankState = (): PersistedState => ({
   xp: 0,
@@ -204,7 +205,7 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
           const nextStatuses = { ...previous.statuses, [questId]: status };
           const wasComplete = completeStatuses(previous.statuses);
           const nowComplete = completeStatuses(nextStatuses);
-          const delta = statusPoints[status] - statusPoints[previousStatus];
+          const delta = pointsForStatus(questId, status) - pointsForStatus(questId, previousStatus);
           let nextXp = Math.max(0, current.xp + delta);
           let bonusAwarded = previous.bonusAwarded ?? false;
 
@@ -236,10 +237,15 @@ export function LifeGamifyProvider({ children }: { children: React.ReactNode }) 
         });
       },
       saveCheckIn: (energy, tomorrow) => {
-        setState((current) => ({
-          ...current,
-          logs: { ...current.logs, [todayKey]: { ...(current.logs[todayKey] ?? blankLog()), energy, tomorrow } },
-        }));
+        setState((current) => {
+          const previous = current.logs[todayKey] ?? blankLog();
+          const checkInAwarded = previous.checkInAwarded ?? false;
+          return {
+            ...current,
+            xp: current.xp + (checkInAwarded ? 0 : 5),
+            logs: { ...current.logs, [todayKey]: { ...previous, energy, tomorrow, checkInAwarded: true } },
+          };
+        });
       },
       addWeight: (value) => {
         setState((current) => ({
@@ -286,5 +292,12 @@ export function statusLabel(status: QuestStatus) {
 }
 
 export function statusPointsFor(status: QuestStatus) {
-  return statusPoints[status];
+  if (status === "full") return 20;
+  if (status === "partial") return 10;
+  if (status === "minimum") return 5;
+  return 0;
+}
+
+export function questPointsFor(questId: string, status: QuestStatus) {
+  return pointsForStatus(questId, status);
 }

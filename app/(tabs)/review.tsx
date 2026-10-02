@@ -13,12 +13,12 @@ const REWARDS = [
 ];
 
 export default function ReviewScreen() {
-  const { state, todayLog, saveCheckIn, claimReward } = useLifeGamify();
+  const { state, todayLog, saveCheckIn, claimReward, resetDemo } = useLifeGamify();
   const [energy, setEnergy] = useState(todayLog.energy ?? 2);
   const [tomorrow, setTomorrow] = useState(todayLog.tomorrow ?? "");
   const [saved, setSaved] = useState(false);
   const weeklyLogs = useMemo(() => Object.entries(state.logs).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7), [state.logs]);
-  const weeklyXp = weeklyLogs.reduce((sum, [, log]) => sum + Object.values(log.statuses).reduce((total, status) => total + (status === "full" ? 20 : status === "partial" ? 10 : status === "minimum" ? 5 : 0), 0), 0);
+  const weeklyXp = weeklyLogs.reduce((sum, [, log]) => sum + Object.values(log.statuses).reduce((total, status) => total + (status === "full" ? 20 : status === "partial" ? 10 : status === "minimum" ? 5 : 0), 0) + (log.bonusAwarded ? 15 : 0) + (log.checkInAwarded ? 5 : 0), 0);
   const weeklyClears = weeklyLogs.reduce((sum, [, log]) => sum + QUESTS.filter((quest) => log.statuses[quest.id] && log.statuses[quest.id] !== "pending" && log.statuses[quest.id] !== "skipped").length, 0);
 
   const save = () => { saveCheckIn(energy, tomorrow.trim()); setSaved(true); setTimeout(() => setSaved(false), 1800); };
@@ -36,6 +36,7 @@ export default function ReviewScreen() {
         {REWARDS.map((reward) => { const claimed = state.claimedRewards.includes(reward.id); const available = weeklyXp >= reward.cost; return <Pressable key={reward.id} onPress={() => available && claimReward(reward.id)} style={[styles.reward, claimed && styles.rewardClaimed, !available && styles.rewardLocked]}><View style={styles.rewardIcon}><Text style={styles.rewardGlyph}>{reward.icon}</Text></View><View style={{ flex: 1 }}><Text style={styles.rewardTitle}>{reward.title}</Text><Text style={styles.rewardDetail}>{reward.detail}</Text></View><View style={styles.rewardRight}><Text style={[styles.rewardCost, available && { color: COLORS.lime }]}>{claimed ? "CLAIMED" : `${reward.cost} XP`}</Text><Text style={styles.rewardChevron}>{available ? "›" : "LOCK"}</Text></View></Pressable>; })}
 
         <Text style={styles.note}>Rewards are a weekly contract with yourself: useful, bounded, and never a punishment for a hard day.</Text>
+        <Pressable onPress={resetDemo} style={({ pressed }) => [styles.resetButton, pressed && styles.pressed]}><Text style={styles.resetText}>RESET LOCAL TEST DATA</Text></Pressable>
       </ScrollView>
     </ScreenContainer>
   );
@@ -77,5 +78,7 @@ const styles = StyleSheet.create({
   rewardCost: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   rewardChevron: { color: COLORS.muted, fontSize: 16, fontWeight: "800" },
   note: { color: COLORS.muted, fontSize: 10, lineHeight: 15, textAlign: "center", paddingHorizontal: 8 },
+  resetButton: { alignSelf: "center", borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginTop: 1 },
+  resetText: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   pressed: { opacity: 0.78 },
 });
