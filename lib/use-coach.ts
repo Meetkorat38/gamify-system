@@ -19,6 +19,13 @@ import {
   ensureLearningLinks,
   ensurePlanLinks,
 } from "@/lib/fallback-plans";
+import {
+  buildFallbackNudge,
+  buildNudgeSignals,
+  nudgeBucket,
+  nudgeId,
+  type CoachNudge,
+} from "@/lib/nudges";
 import { useLifeGamify } from "@/lib/lifegamify-store";
 import { trpc } from "@/lib/trpc";
 
@@ -34,6 +41,7 @@ export function useCoach() {
   const alignMutation = trpc.ai.alignment.useMutation();
   const dietMutation = trpc.ai.dietPlan.useMutation();
   const learningMutation = trpc.ai.learningPlan.useMutation();
+  const nudgeMutation = trpc.ai.nudge.useMutation();
 
   const cachedDaily = getAi<DailyPlan>(state, aiKey("daily", todayKey));
   const dailyPlan = cachedDaily ? ensurePlanLinks(cachedDaily) : null;
@@ -41,6 +49,20 @@ export function useCoach() {
   const dietPlan = getAi<DietPlan>(state, aiKey("diet", weekStart));
   const cachedLearning = getAi<LearningPlan>(state, aiKey("learning", weekStart));
   const learningPlan = cachedLearning ? ensureLearningLinks(cachedLearning) : null;
+
+  const signals = useMemo(() => buildNudgeSignals(snapshot), [snapshot]);
+  const nudgeStamp = `${todayKey}:${nudgeBucket(snapshot.hourOfDay)}`;
+  const cachedNudge = getAi<CoachNudge>(state, aiKey("nudge", nudgeStamp));
+  const nudge: CoachNudge | null = !signals.behind
+    ? null
+    : cachedNudge
+      ? {
+          ...cachedNudge,
+          id: nudgeId(snapshot, signals),
+          level: signals.level,
+          signals: signals.reasons.map((reason) => reason.label),
+        }
+      : buildFallbackNudge(snapshot, signals);
 
   const generateDailyPlan = async () => {
     try {
@@ -90,8 +112,33 @@ export function useCoach() {
     }
   };
 
+  const generateNudge = async () => {
+    if (!signals.behind) return null;
+    try {
+      const data = (await nudgeMutation.mutateAsync({
+        ...snapshot,
+        behindSignals: signals.reasons,
+      })) as Omit<CoachNudge, "id" | "source" | "signals">;
+      const full: CoachNudge = {
+        ...data,
+        id: nudgeId(snapshot, signals),
+        source: "ai",
+        signals: signals.reasons.map((reason) => reason.label),
+      };
+      saveAi(aiKey("nudge", nudgeStamp), full);
+      return full;
+    } catch {
+      const fallback = buildFallbackNudge(snapshot, signals);
+      saveAi(aiKey("nudge", nudgeStamp), fallback);
+      return fallback;
+    }
+  };
+
   return {
     snapshot,
+    nudge,
+    nudgeSignals: signals,
+    generateNudge,
     dailyPlan,
     alignment,
     dietPlan,
@@ -104,5 +151,6 @@ export function useCoach() {
     busyAlign: alignMutation.isPending,
     busyDiet: dietMutation.isPending,
     busyLearning: learningMutation.isPending,
+    busyNudge: nudgeMutation.isPending,
   };
 }

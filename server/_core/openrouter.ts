@@ -43,7 +43,7 @@ function modelCandidates(): string[] {
   return Array.from(new Set(list));
 }
 
-export async function chatJSON<T>({ system, user, maxTokens = 1600 }: ChatArgs): Promise<T> {
+export async function chatJSON<T>({ system, user, maxTokens = 2400 }: ChatArgs): Promise<T> {
   const cacheKey = `${system}::${user}`;
   const hit = responseCache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.data as T;

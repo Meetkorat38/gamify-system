@@ -45,7 +45,7 @@ export type CoachSnapshot = {
   recentScores: { date: string; minutes: number; pronunciation: number; grammar: number; vocabulary: number; clarity: number }[];
 };
 
-export type AiKind = "daily" | "align" | "diet" | "learning";
+export type AiKind = "daily" | "align" | "diet" | "learning" | "nudge";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 

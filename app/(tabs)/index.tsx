@@ -31,10 +31,12 @@ const greetingFor = (hour: number) => {
 
 export default function CommandScreen() {
   const { state, todayKey, todayLog, dayNumber, phase, phaseCopy, level, recoveryDays, loading, togglePlanItem } = useLifeGamify();
-  const { dailyPlan, alignment, generateDailyPlan, generateAlignment, busyDaily, busyAlign } = useCoach();
+  const { dailyPlan, alignment, nudge, nudgeSignals, generateDailyPlan, generateAlignment, generateNudge, busyDaily, busyAlign, busyNudge } = useCoach();
   const started = useRef(false);
   const [heroAnim] = useState(() => new Animated.Value(0));
   const [questionOpen, setQuestionOpen] = useState(false);
+  const [dismissedNudge, setDismissedNudge] = useState<string | null>(null);
+  const nudgeAttempted = useRef("");
 
   useEffect(() => {
     Animated.timing(heroAnim, { toValue: 1, duration: 480, useNativeDriver: true }).start();
@@ -46,6 +48,14 @@ export default function CommandScreen() {
     if (!dailyPlan || dailyPlan.source === "fallback") generateDailyPlan().catch(() => undefined);
     if (!alignment || alignment.source === "fallback") generateAlignment().catch(() => undefined);
   }, [loading, dailyPlan, alignment, generateDailyPlan, generateAlignment]);
+  useEffect(() => {
+    if (loading || !nudgeSignals.behind || busyNudge) return;
+    if (nudge && nudge.source === "ai") return;
+    const attemptId = nudge?.id ?? "none";
+    if (nudgeAttempted.current === attemptId) return;
+    nudgeAttempted.current = attemptId;
+    generateNudge().catch(() => undefined);
+  }, [loading, nudgeSignals, nudge, busyNudge, generateNudge]);
 
   const hour = new Date().getHours();
   const completed = QUESTS.filter((quest) => todayLog.statuses[quest.id] && todayLog.statuses[quest.id] !== "pending").length;
@@ -180,6 +190,27 @@ export default function CommandScreen() {
           )}
         </Animated.View>
 
+        {nudge && nudge.id !== dismissedNudge ? (
+          <View
+            style={[
+              styles.nudgeCard,
+              nudge.level === "rescue" ? styles.nudgeRescue : nudge.level === "firm" ? styles.nudgeFirm : styles.nudgeGentle,
+            ]}
+          >
+            <View style={styles.nudgeRow}>
+              <Text style={styles.nudgeLabel}>{"// COACH NUDGE · "}{nudge.level.toUpperCase()}</Text>
+              <Pressable onPress={() => setDismissedNudge(nudge.id)} hitSlop={8}>
+                <Text style={styles.nudgeDismiss}>{"DISMISS ✕"}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.nudgeHeadline}>{nudge.headline}</Text>
+            <Text style={styles.planWhy}>{nudge.message}</Text>
+            <View style={styles.nudgeRow}>
+              <Text style={styles.nudgeAction}>{"→ "}{nudge.action}</Text>
+              <Text style={styles.nudgeMinutes}>{nudge.minutes}{" MIN"}</Text>
+            </View>
+          </View>
+        ) : null}
         <Pressable onPress={() => generateAlignment().catch(() => undefined)} style={[styles.alignCard, { borderColor: alignment ? ALIGN_COLOR[alignment.status] ?? COLORS.amber : COLORS.line }]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>{"// GOAL ALIGNMENT"}</Text>
@@ -308,6 +339,16 @@ const styles = StyleSheet.create({
   reanalyzeText: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   heroLoading: { flexDirection: "row", gap: 10, alignItems: "center", paddingVertical: 8 },
   heroLoadingText: { flex: 1, color: COLORS.muted, fontSize: 11, lineHeight: 16 },
+  nudgeCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 7 },
+  nudgeGentle: { borderColor: COLORS.cyan, backgroundColor: COLORS.cyanDim },
+  nudgeFirm: { borderColor: COLORS.amber, backgroundColor: COLORS.amberDim },
+  nudgeRescue: { borderColor: COLORS.red, backgroundColor: COLORS.redDim },
+  nudgeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  nudgeLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  nudgeDismiss: { color: COLORS.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  nudgeHeadline: { color: COLORS.text, fontSize: 16, fontWeight: "900", lineHeight: 21 },
+  nudgeAction: { color: COLORS.text, fontSize: 11, fontWeight: "700", flex: 1 },
+  nudgeMinutes: { color: COLORS.amber, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   alignCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },

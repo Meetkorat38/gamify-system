@@ -59,7 +59,7 @@ export const aiRouter = router({
     .mutation(({ input }) =>
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
-        maxTokens: 2000,
+        maxTokens: 6000,
         user: promptWithSnapshot(
           "Decide TODAY's mission automatically. Pick exactly one focus sub-topic that is the logical next step in his curriculum after topicsCovered, then give one specific question or executable task with a deliverable, and 4 to 6 concrete actions for today. Each action names its exact sub-topic and its own concrete question or task. Respect hourOfDay, weekday, phase and the three tracks; English stays at or under 25 minutes.",
           '{"focus":"the exact sub-topic advanced today","focusQuestion":"one specific question or executable task with a clear deliverable","links":[{"title":"resource name","url":"https://..."}],"items":[{"title":"exact sub-topic action","question":"the concrete question or task for this item","why":"why this next, given what is already covered","minutes":30,"track":"career|english|health|system","links":[{"title":"resource name","url":"https://..."}]}]} with 4 to 6 items',
@@ -90,6 +90,7 @@ export const aiRouter = router({
     .mutation(({ input }) =>
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
+        maxTokens: 2400,
         user: promptWithSnapshot(
           "Judge honestly whether he is aligned with the goal right now. Compare real effort across Career, English and Health against the 90-day campaign and the mid-November interview target. Score alignment 0-100.",
           '{"status":"aligned|at-risk|off-track","score":70,"observations":["observation 1","observation 2","observation 3"],"correction":"the single most important correction for the next 48 hours"}',
@@ -111,6 +112,7 @@ export const aiRouter = router({
     .mutation(({ input }) =>
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
+        maxTokens: 4500,
         user: promptWithSnapshot(
           "Create a personalized 7-day vegetarian-plus-eggs weight-gain meal plan for steady healthy gain toward 60 kg. Home food only, use tomatoes and bananas, include affordable Indian staples. Keep portions realistic for a 22-year-old with a job.",
           '{"summary":"one line strategy","rules":["rule 1","rule 2","rule 3"],"days":[{"day":"Mon","breakfast":["item"],"lunch":["item"],"dinner":["item"],"snacks":["item"]}]} with exactly 7 days',
@@ -139,6 +141,7 @@ export const aiRouter = router({
     .mutation(({ input }) =>
       chatJSON<Record<string, unknown>>({
         system: COACH_CONTEXT,
+        maxTokens: 4500,
         user: promptWithSnapshot(
           "Create this week's learning curriculum for AI automation interviews. List the most recently covered topics, then sequence exact sub-topics as next/upcoming so he always knows what to learn after what. Every block names one exercise with an output. Include interview practice items.",
           '{"summary":"one line strategy","covered":["recently covered sub-topic"],"weekFocus":["focus 1","focus 2","focus 3"],"blocks":[{"skill":"track or skill","task":"exact sub-topic plus one exercise with an output","status":"next|upcoming","minutes":45,"links":[{"title":"resource name","url":"https://..."}]}],"interviewPrep":["practice item"]}',
@@ -162,5 +165,29 @@ export const aiRouter = router({
           }),
         interviewPrep: asStringArray(raw.interviewPrep, 6),
       })),
+    ),
+
+  nudge: publicProcedure
+    .input(snapshotSchema)
+    .mutation(({ input }) =>
+      chatJSON<Record<string, unknown>>({
+        system: COACH_CONTEXT,
+        maxTokens: 1500,
+        user: promptWithSnapshot(
+          "He is falling behind and has not asked for help. Write ONE proactive nudge right now. Pick the single most damaging gap using behindSignals and the snapshot numbers, name the exact gap with real numbers, and give the smallest action that recovers it today. Never shame him; partial progress counts.",
+          '{"level":"gentle|firm|rescue","headline":"at most 6 words, direct","message":"one sentence with exact numbers, at most 25 words","action":"the single smallest recovery action, at most 12 words","minutes":15,"track":"career|english|health|system"}',
+          input,
+        ),
+      }).then((raw) => {
+        const level = asString(raw.level, "firm");
+        return {
+          level: level === "gentle" || level === "rescue" ? level : "firm",
+          headline: asString(raw.headline, "One small move beats a perfect plan"),
+          message: asString(raw.message, "The numbers show a gap today; the smallest action closes it."),
+          action: asString(raw.action, "Do the smallest unfinished action now"),
+          minutes: Math.round(asNumber(raw.minutes, 15, 2, 240)),
+          track: asTrack(raw.track),
+        };
+      }),
     ),
 });
